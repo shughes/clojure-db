@@ -3,3 +3,7 @@
 ** User Accounts
 *** Submit trends
 *** Vote on trends
+** Topics
+*** Politics
+*** UI 
+*** Military

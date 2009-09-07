@@ -1,6 +1,6 @@
-(add-classpath "file:///Users/shughes/Desktop/clojure/messaging/lib/jetty-6.1.9.jar")
-(add-classpath "file:///Users/shughes/Desktop/clojure/messaging/lib/jetty-util-6.1.9.jar")
-(add-classpath "file:///Users/shughes/Desktop/clojure/messaging/lib/servlet-api-2.5-6.1.9.jar")
+(add-classpath "file:///Users/shughes/Documents/clojure-trials/lib/jetty-6.1.9.jar")
+(add-classpath "file:///Users/shughes/Documents/clojure-trials/lib/jetty-util-6.1.9.jar")
+(add-classpath "file:///Users/shughes/Documents/clojure-trials/lib/servlet-api-2.5-6.1.9.jar")
 
 (ns clojure.messaging.server
   (:import 
