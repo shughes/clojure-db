@@ -78,12 +78,14 @@
   (page "Admin" [:p "Only admin can see this page."]))
 
 (defroutes webservice
-  (ANY "/articles/" (view-article-list))
-  (GET "/login/" (login-view))
-  (POST "/login/" (login-controller params))
-  (ANY "/logout/" (logout-controller))
-  (ANY "/*" (ensure-admin-controller))
-  (ANY "/admin/" (admin-view)))
+  (ANY #"/articles(/*)" (view-article-list))
+  (GET #"/login(/*)" (login-view))
+  (POST #"/login(/*)" (login-controller params))
+  (ANY #"/logout(/*)" (logout-controller))
+  (ANY #"/admin(/*)" (ensure-admin-controller)) ; verification step
+  (ANY #"/admin(/*)" (admin-view)))
 
-;(def server (run-server {:port 8080} "/*" (servlet webservice)))
-;(start server)
+(def server (run-server {:port 8080} "/*" (servlet webservice)))
+(start server)
+
+
