@@ -1,0 +1,5 @@
+
+* Trends Website Idea
+** User Accounts
+*** Submit trends
+*** Vote on trends
