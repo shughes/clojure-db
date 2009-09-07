@@ -1,6 +1,6 @@
 (add-classpath "file:///usr/local/clojure/extra/clojure-contrib/clojure-contrib.jar")
 
-(ns clojure.test
+(ns clojure.xml
   (:use [clojure.contrib.str-utils])
   (:require [clojure.contrib.zip-filter.xml :as contrib-xml]
 	    [clojure.contrib.str-utils2 :as str2]))
