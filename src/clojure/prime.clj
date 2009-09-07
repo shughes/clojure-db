@@ -2,7 +2,9 @@
   (:import [java.lang Math])
   (:use [clojure.contrib.math]))
 
-(defn expt? [n a b]
+(defn expt? 
+  "this is docs for the expt? that i am testing"
+  [n a b]
   (let [ex (expt a b)]
     (cond
       (= a 1) false
@@ -20,4 +22,4 @@
 	(= result true) true
 	(= result false) (recur (inc a) b)))))
 
-(factor? 100)
+
