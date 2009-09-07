@@ -1,0 +1,6 @@
+#!/bin/bash
+
+wget http://shughes.s3.amazonaws.com/clojure/jars.tar.gz
+tar -xzvf jars.tar.gz
+rm jars.tar.gz
+
