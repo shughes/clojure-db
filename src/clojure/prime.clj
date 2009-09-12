@@ -22,4 +22,3 @@
 	(= result true) true
 	(= result false) (recur (inc a) b)))))
 
-

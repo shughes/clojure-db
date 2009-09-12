@@ -81,7 +81,19 @@
 (defmacro our-when [test & body]
   `(if ~test (do ~@body)))
 
-(def lst '(1 2 3))
+(macroexpand '(our-when (= 2 2) (+ 2 5) (+ 2 1)))
+(our-when (= 2 2) (+ 2 5) (+ 2 1))
+
+(defmacro my-dbg [& body]
+  `(do ~@body))
+(macroexpand '(my-dbg (+ 3 5) (+ 2 7)))
+
+(defmacro my-defn [name args & body]
+  `(def ~name (fn [~@args] ~@body)))
+
+(def lst '(a b c d e))
+`[~@lst]
+
 
 (def curry (fn [x]
 	     (fn [y]

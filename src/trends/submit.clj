@@ -1,16 +1,20 @@
 (ns trends.submit
   (:use [trends.model]
+	[trends.general]
 	[compojure]))
 
 (defn submit-controller 
   ([user params] 
-     (add-trend (params :subject) (params :trend))
+     (add-trend (user :id) (params :subject) (params :trend))
      (redirect-to "/home"))
   ([user] 
-     (html
-      [:body [:form {:method "post"}
+     (page [:form {:method "post"}
 	      "title " [:input {:name "subject", :type "text"}]
 	      [:br]
 	      "trend " [:textarea {:name "trend"}]
 	      [:br]
-	      [:input {:type "submit", :value "submit"}]]])))
+	      [:input {:type "submit", :value "submit"}]] user)))
+
+(defn submit-context []
+  (list (GET #"(/*)" (logged-in-only submit-controller cookies))
+	(POST #"(/*)" (logged-in-only submit-controller cookies params))))

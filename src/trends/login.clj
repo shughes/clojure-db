@@ -5,9 +5,8 @@
    [trends.model]
    [compojure]))
 
-(defn login-view []
-  (html
-   [:body
+(defn- login-view []
+  (page 
     [:form {:method "post"}
      "User name: "
      [:input {:name "username", :type "text"}]
@@ -15,17 +14,19 @@
      "Password: "
      [:input {:name "password", :type "password"}]
      [:br]
-     [:input {:type "submit" :value "Login"}]]]))
+     [:input {:type "submit" :value "Login"}]]))
 
-(defn login-controller [params]
-  (let [user ((@data :users) (params :username))]
-    (if (= (user :password) (md5 (params :password)))
-      (let [userdata (set-cookie "userdata" (json-str {:username (params :username) 
-						       :password (md5 (params :password))}))]
-	[302 {:headers {"Location" "/articles" 
-			"Set-Cookie" ((userdata :headers) "Set-Cookie")}}])
+(defn- login-post [params]
+  (let [user (get-user (params :username))
+	userdata (setup-session (params :username) (params :password))]
+    (if (not= nil userdata)
+      [302 {:headers {"Location" "/" 
+		      "Set-Cookie" ((userdata :headers) "Set-Cookie")}}]
       (redirect-to "/login"))))
 
-(defn logout-controller []
-  [302 {:headers {"Location" "/login"
-		  "Set-Cookie" "userdata=nil"}}])
+(defn login-context []
+  (list 
+   (GET #"(/*)" (login-view))
+   (POST #"(/*)" (login-post params))
+   (ANY "*" (redirect-to "/404.html"))))
+	
