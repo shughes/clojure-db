@@ -2,6 +2,7 @@
   (:use 
    [clojure.contrib.json.write]
    [trends.general]
+   [trends.security]
    [trends.model]
    [compojure]))
 

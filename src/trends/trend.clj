@@ -1,6 +1,7 @@
 (ns trends.trend
   (:use [compojure]
 	[trends.general]
+	[trends.security]
 	[trends.model]))
 
 (defn- display-trend [user params]
