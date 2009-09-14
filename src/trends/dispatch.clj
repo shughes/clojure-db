@@ -1,11 +1,12 @@
 (ns trends.dispatch
   (:require
-   [trends.trend :as trend]
-   [trends.login :as login]
+   [trends.controllers.users :as users]
+   [trends.controllers.trends :as trend]
+   [trends.controllers.login :as login]
    [trends.security :as security]
-   [trends.general :as general])
+   [trends.views.layout :as general])
   (:use 
-   [trends.model]
+   [clojure.contrib.sql]
    [clojure.contrib.test-is]
    [clojure.contrib.json.read]
    [compojure]))
@@ -26,16 +27,21 @@
 
 (defn- logout []
   [302 {:headers {"Location" "/login"
-		  "Set-Cookie" "userdata=nil"}}])
+		  "Set-Cookie" "userdata=nil; expires=Sat, 01-Jan-2000 00:00:00 GMT"}}])
+
+(defn- my-context [ctx ret]
+  (let [pattern (re-pattern (str "^" ctx "(/.*)?"))]
+    (fn [request]
+      (if-let [val (re-matches (re-pattern pattern) (request :uri))]
+	{:status 200
+	 :headers {"Content-type" "text/html"}
+	 :body ret}))))
 
 (defroutes webservice
-  (ANY "/logout" (logout))
+  (route-context "/users" (users/users-context))
   (route-context "/trend" (trend/trend-context))
   (route-context "/login" (login/login-context))
-  (ANY "/404.html" (general/error-page-view))
+  (ANY "/logout" (logout))
+  (ANY #"(/*)" (security/with-user trend/show-list request))
   (ANY "/:name.css" (serve-file (str (params :name) ".css")))
-  (ANY #"(/*)" (security/with-user trend/show-list cookies))
-  (ANY "/*" (redirect-to "/404.html")))
-
-(def server (run-server {:port 8080} "/*" (servlet webservice)))
-(start server)
+  (ANY "/*" [404 (general/error-page-view)]))

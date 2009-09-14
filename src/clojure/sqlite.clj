@@ -1,6 +1,7 @@
-(add-classpath "file:///Users/shughes/Documents/clojure-trials/lib/sqlitejdbc-v056.jar")
-(import '(java.sql DriverManager SQLException))
-(use 'clojure.contrib.sql)
+(ns clojure.sqlite
+  (:import [java.sql DriverManager SQLException]
+	   [org.sqlite JDBC])
+  (:use [clojure.contrib.sql]))
 
 (defn direct-port []
   (Class/forName "org.sqlite.JDBC")
@@ -20,7 +21,7 @@
 	  (println "name =" (.getString results "name"))
 	  (println "job  ="  (.getString results "occupation"))
 	  (recur))))
-    (.close conn))
+    (.close conn)))
 
 (defn contrib-sql []
   (with-connection {:classname   "org.sqlite.JDBC"
@@ -35,10 +36,8 @@
 		   ["Gandhi"       "politics"]
 		   ["Turing"       "computers"]
 		   ["Wittgenstein" "smartypants"])
-    (with-query-results results "select * from people"
-		  (doseq [record results]
-		    (println "name =" (:name record))
-		    (println "job  =" (:occupation record))))))
+    (with-query-results results ["select * from people"]
+      (doseq [record results]
+	(println "name =" (:name record))
+	(println "job  =" (:occupation record))))))
 
-(println "Java-y version") (direct-port)
-(println "Lispy version")  (contrib-sql)

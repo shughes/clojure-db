@@ -1,13 +1,13 @@
-(ns trends.login
+(ns trends.controllers.login
   (:use 
    [clojure.contrib.json.write]
-   [trends.general]
+   [trends.views.layout]
    [trends.security]
-   [trends.model]
+   [trends.models.user]
    [compojure]))
 
-(defn- login-view []
-  (page 
+(defn- login-view [user request]
+  (page user
     [:form {:method "post"}
      "User name: "
      [:input {:name "username", :type "text"}]
@@ -17,8 +17,9 @@
      [:br]
      [:input {:type "submit" :value "Login"}]]))
 
-(defn- login-post [params]
-  (let [user (get-user (params :username))
+(defn- login-post [request]
+  (let [params (request :params)
+	user (get-user (params :username))
 	userdata (setup-session (params :username) (params :password))]
     (if (not= nil userdata)
       [302 {:headers {"Location" "/" 
@@ -27,7 +28,7 @@
 
 (defn login-context []
   (list 
-   (GET #"(/*)" (login-view))
-   (POST #"(/*)" (login-post params))
+   (GET #"(/*)" (with-user login-view request))
+   (POST #"(/*)" (login-post request))
    (ANY "*" (redirect-to "/404.html"))))
 	

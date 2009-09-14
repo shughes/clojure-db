@@ -1,14 +1,18 @@
 (ns trends.security
   (:use 
    [compojure]
-   [trends.model]
+   [trends.models.user]
+   [trends.views.layout]
    [clojure.contrib.json.write]
    [clojure.contrib.json.read])
   (:import
    [java.security NoSuchAlgorithmException MessageDigest]))
 
-(defn ensure-logged-in [cookies]
-  (if (and (not= (cookies :userdata) nil) (not= (cookies :userdata) "nil"))
+(defn ensure-logged-in 
+  "Returns true if there's a logged in user session. Otherwise, returns false."
+  [cookies]
+  (if (and (not= (cookies :userdata) nil) (not= (cookies :userdata) "nil")
+	   (not= (cookies :userdata) ""))
     (let [user (read-json (cookies :userdata))
 	  real-user (get-user (user "username"))]
       (if (= (user "password") (real-user :password))
@@ -16,36 +20,30 @@
 	false))
     false))
 
-(defn- call-f [f cookies params]
-  (if (not= nil params)
-    (f (get-user (get-cookie-username cookies)) (first params))
-    (f (get-user (get-cookie-username cookies)))))
-
 (defn logged-in-only 
   "Like with-user, but user session must exist for function f to be called.
    Otherwise, will be redirect to login.
 
-   function f takes user as first argument, and optionally takes params as
-   second argument."
-  [f cookies & params]
-  (if (ensure-logged-in cookies)
-    (call-f f cookies params)
+   function f takes user and request as arguments."
+  [f request]
+  (if (ensure-logged-in (request :cookies))
+    (f (get-user (get-cookie-username (request :cookies))) request)
     (redirect-to "/login")))
 
 (defn with-user 
   "Will pass user into function f if the user cookie exists. Otherwise
    show page without a user session.
    
-   Pass function f along with cookies and/or params. Cookies will be 
-   converted to user structure, which will be passed to function f."
-  [f cookies & params]
-  (if (ensure-logged-in cookies)
-    (call-f f cookies params)
-    (if (not= nil params)
-      (f nil (first params))
-      (f nil))))
+   Pass function f along with request. Cookies will be converted to user 
+   structure, which will be passed to function f, along with the request."
+  [f request]
+  (if (ensure-logged-in (request :cookies))
+    (f (get-user (get-cookie-username (request :cookies))) request)
+    (f nil request)))
 
-(defn md5 [str]
+(defn md5 
+  "Return md5 hash string"
+  [str]
   (let [alg (doto (MessageDigest/getInstance "MD5")
 	      (.reset)
 	      (.update (.getBytes str)))]
@@ -54,12 +52,12 @@
      (catch NoSuchAlgorithmException e
        (throw (new RuntimeException e))))))
 
-(defn setup-session [username password]
+(defn setup-session 
+  "If user with md5 hashed password exists, sets user cookie."
+  [username password]
   (let [user (get-user username)]
     (if (= nil user) 
       nil
       (if (= (user :password) (md5 password))
-	(let [userdata (set-cookie "userdata" 
-				   (json-str {:username username, :password (md5 password)}))]
-	  userdata)
+	(set-cookie "userdata" (json-str {:username username, :password (md5 password)}))
 	nil))))
