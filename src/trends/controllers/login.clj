@@ -19,7 +19,7 @@
 
 (defn- login-post [request]
   (let [params (request :params)
-	user (get-user (params :username))
+	user (first (get-users {:where (str "username='" (params :username) "'")}))
 	userdata (setup-session (params :username) (params :password))]
     (if (not= nil userdata)
       [302 {:headers {"Location" "/" 

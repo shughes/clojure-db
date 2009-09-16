@@ -1,58 +1,74 @@
 (ns trends.models.trend
+  (:import 
+   [java.util Date])
   (:use 
+   [trends.general]
    [clojure.contrib.json.write]
    [clojure.contrib.json.read]
+   [trends.security]
    [clojure.contrib.sql]
    [compojure]))
 
-(def db {:classname   "org.sqlite.JDBC"
-	 :subprotocol "sqlite"
-	 :subname     "trends.db"})
-
-(defn init-db []
+(defn- create-tables []
   (with-connection db
+    (create-table :comment_history
+		  [:id          :integer "primary key"]
+		  [:comment_id  :integer]
+		  [:user_id     :integer]
+		  [:karma       :integer])
     (create-table :users 
-		  [:name     :text] 
+		  [:id       :integer "primary key"]
+		  [:name     "varchar(200)"] 
 		  [:username :text]
-		  [:password :text]
-		  [:karma    :int])
-    (create-table :trends
-		  [:subject :text]
-		  [:karma   :int]
-		  [:trend   :text]
-		  [:userid  :int])))
+		  [:password :text])
+    (create-table :comments
+		  [:id           :integer "primary key"]
+		  [:is_trend     :boolean "default true"]
+		  [:subject      :text]
+		  [:comment      :text]
+		  [:karma	 :integer "default 0"]
+		  [:weight       :double  "default 0.0"]
+		  [:time_posted	 :long]
+		  [:userid       :integer]
+		  [:parentid     :integer "default -1"])))
 
-(defn contrib-sql []
+(defn- add-rows []
   (with-connection db
-    (create-table :users 
-		  [:name :text] 
-		  [:username :text]
-		  [:password :text]
-		  [:karma :int])
-    (insert-values :people
-		   [:name          :occupation]
-		   ["Gandhi"       "politics"]
-		   ["Turing"       "computers"]
-		   ["Wittgenstein" "smartypants"])
-    (with-query-results results ["select * from people"]
+    (insert-values :comment_history
+		   [:user_id :comment_id :karma]
+		   [1 1 -1])
+    (insert-values :users
+		   [:name :username :password]
+		   ["Samuel Hughes" "shughes" "2360f41705bad0c72affa41a59b9218a"])
+    (insert-values :comments
+		   [:subject :comment :time_posted :userid]
+		   ["trend about samuel" "do you think sam is greater than gandhi?" (timestamp) 1])))
+
+
+(defn- sample-query []
+  (with-connection db
+    (with-query-results results ["select * from users"]
       (doseq [record results]
-	(println "name =" (:name record))
-	(println "job  =" (:occupation record))))))
+	(println "name = " (record :name))
+	(println "username = " (record :username))))))
 
 (def trends (ref {1 {:subject "Are you into Sam Hughes?", 
 		     :id 1
 		     :karma 20
 		     :trend "the trend 1"
+		     :weight 1.0
 		     :userid 1}
 		  2 {:subject "What's latest on Sam Hughes"
 		     :id 2 
 		     :karma 35 
 		     :trend "the trend 2"
+		     :weight 1.0
 		     :userid 1}
 		  3 {:subject "The latest Obama scanre"
 		     :id 3 
 		     :karma 20
 		     :trend "what's the deal with this Obama character?"
+		     :weight 1.0
 		     :userid 1}}))
 
 (defn get-trends []

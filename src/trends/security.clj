@@ -14,7 +14,7 @@
   (if (and (not= (cookies :userdata) nil) (not= (cookies :userdata) "nil")
 	   (not= (cookies :userdata) ""))
     (let [user (read-json (cookies :userdata))
-	  real-user (get-user (user "username"))]
+	  real-user (first (get-users {:where (str "username='" (user "username") "'")}))]
       (if (= (user "password") (real-user :password))
 	true
 	false))
@@ -27,7 +27,9 @@
    function f takes user and request as arguments."
   [f request]
   (if (ensure-logged-in (request :cookies))
-    (f (get-user (get-cookie-username (request :cookies))) request)
+    (f (first (get-users {:where (str "username='" 
+				      (get-cookie-username 
+				       (request :cookies)) "'")})) request)
     (redirect-to "/login")))
 
 (defn with-user 
@@ -38,7 +40,8 @@
    structure, which will be passed to function f, along with the request."
   [f request]
   (if (ensure-logged-in (request :cookies))
-    (f (get-user (get-cookie-username (request :cookies))) request)
+    (f (first 
+	(get-users {:where (str "username='" (get-cookie-username (request :cookies)) "'")})) request)
     (f nil request)))
 
 (defn md5 
@@ -55,7 +58,7 @@
 (defn setup-session 
   "If user with md5 hashed password exists, sets user cookie."
   [username password]
-  (let [user (get-user username)]
+  (let [user (first (get-users {:where (str "username='" username "'")}))]
     (if (= nil user) 
       nil
       (if (= (user :password) (md5 password))

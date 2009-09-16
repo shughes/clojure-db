@@ -3,54 +3,36 @@
 	[trends.views.layout]
 	[trends.security]
 	[trends.models.user]
-	[trends.models.trend]))
+	[trends.models.trend]
+	[trends.models.comment]))
 
 (defn- display-trend [user request]
-  (let [trends (get-trends)
-	params (request :params)]
-    (if (not= nil (trends (new Integer (params :id))))
-      (page user ((trends (new Integer (params :id))) :trend))
+  (let [params (request :params)
+	trend (first (get-comments {:where (str "id = " (params :id))}))]
+    (if (not= nil trend)
+      (page user (trend :comment))
       (redirect-to "/404.html"))))
 
-(defn- log-user-vote [userid trendid dir]
-  (let [h (get-user-history userid)
-        key (if (= dir 1)
-	      :voted-up
-	      :voted-down)
-	v (h key)]
-    (let [new-v (assoc v trendid true)
-	  new-h (assoc h key new-v)]
-      (set-user-history userid new-h))))
-    
-(defn- user-has-voted [userid trendid dir]
-  (let [h (get-user-history userid)]
-    (let [result (if (= dir 1)
-		   (h :voted-up)
-		   (h :voted-down))]
-      (if (= nil result)
-	false
-	(result trendid)))))
-
 (defn- points-to-apply [userid trendid dir]
-  (let [h (get-user-history userid)
-	t ((h :voted) trendid)]
-    (cond 
-      (or (= 0 t) (= nil t)) (if (= 1 dir) 1 -1)
-      (= 1 t) (if (= 1 dir) 0 -2)
-      (= -1 t) (if (= 1 dir) 2 0)
-      :else 0)))
+  (let [h (get-comment-history userid trendid)]
+    (if (not= nil h)
+      (let [karma (h :karma)]
+	(cond 
+	  (or (= 0 karma) (= nil karma)) (if (= 1 dir) 1 -1)
+	  (= 1 karma) (if (= 1 dir) 0 -1)
+	  (= -1 karma) (if (= 1 dir) 1 0)
+	  :else 0))
+      0)))
 
 (defn- vote [user request]
   (let [params (request :params)
 	trendid (new Integer (params :id))
 	dir (if (= (params :dir) "up") 1 0)
-	points (points-to-apply (user :id) trendid dir)]
-    (if (not= 0 points)
-      (let [old1 (get-user-vote-history (user :id) trendid)
-	    old-points (if (= nil old1) 0 old1)
-	    old-karma (get-trend-karma trendid)]
-	(set-user-vote-history (user :id) trendid (+ old-points points))
-	(set-trend-karma trendid (+ old-karma points))))
+	points (points-to-apply (user :id) trendid dir)
+	h (get-comment-history (user :id) trendid)]
+    (if (and (not= 0 points) (not= nil h))
+      (let [karma (h :karma)]
+	(set-comment-history (user :id) trendid points)))
     (redirect-to (str "/trend/id/" trendid))))
 
 (defn- submit [user request]
@@ -69,7 +51,7 @@
 (defn- show-trends [trends]
   (if (= (first trends) nil) 
     ""
-    (let [trend ((first trends) 1)]
+    (let [trend (first trends)]
       (concat 
        (vector (link-to (str "/trend/vote/" (trend :id) "/up") "up") 
 	       "/"
@@ -80,8 +62,9 @@
        (show-trends (rest trends))))))
 
 (defn show-list [user request]
-  (page user (vec (concat (list :div) (show-trends (get-trends))))))
-  
+  (let [trends (get-comments {:where "is_trend = 'true'", :orderby "weight", :limit 10})]
+    (page user (vec (concat (list :div) (show-trends trends))))))
+
 (defn trend-context []
   (list (GET "/vote/:id/:dir" (logged-in-only vote request))
 	(GET "/submit" (logged-in-only submit request))
@@ -89,3 +72,4 @@
 	(GET "/list" (with-user show-list request))
 	(GET "/id/:id" (with-user display-trend request))
 	(ANY "*" (redirect-to "/404.html"))))
+
