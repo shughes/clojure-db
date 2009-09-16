@@ -1,6 +1,7 @@
 (ns trends.controllers.login
   (:use 
    [clojure.contrib.json.write]
+   [trends.general]
    [trends.views.layout]
    [trends.security]
    [trends.models.user]
@@ -27,8 +28,7 @@
       (redirect-to "/login"))))
 
 (defn login-context []
-  (list 
+  (list
    (GET #"(/*)" (with-user login-view request))
    (POST #"(/*)" (login-post request))
    (ANY "*" (redirect-to "/404.html"))))
-	

@@ -1,5 +1,6 @@
 (ns trends.security
   (:use 
+   [clojure.contrib.sql]
    [compojure]
    [trends.models.user]
    [trends.views.layout]
@@ -26,11 +27,11 @@
 
    function f takes user and request as arguments."
   [f request]
-  (if (ensure-logged-in (request :cookies))
-    (f (first (get-users {:where (str "username='" 
-				      (get-cookie-username 
-				       (request :cookies)) "'")})) request)
-    (redirect-to "/login")))
+    (if (ensure-logged-in (request :cookies))
+      (f (first (get-users {:where (str "username='" 
+					(get-cookie-username 
+					 (request :cookies)) "'")})) request)
+      (redirect-to "/login")))
 
 (defn with-user 
   "Will pass user into function f if the user cookie exists. Otherwise
@@ -39,10 +40,10 @@
    Pass function f along with request. Cookies will be converted to user 
    structure, which will be passed to function f, along with the request."
   [f request]
-  (if (ensure-logged-in (request :cookies))
-    (f (first 
-	(get-users {:where (str "username='" (get-cookie-username (request :cookies)) "'")})) request)
-    (f nil request)))
+    (if (ensure-logged-in (request :cookies))
+      (f (first 
+	  (get-users {:where (str "username='" (get-cookie-username (request :cookies)) "'")})) request)
+      (f nil request)))
 
 (defn md5 
   "Return md5 hash string"

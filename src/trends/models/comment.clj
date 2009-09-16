@@ -10,7 +10,10 @@
 (defn- get-comment-history* [args]
   (trends.general/db-find "comment_history" args))
 
-(defn get-comment-history [userid commentid]
+(defn get-comment-history 
+  ([args]
+     (get-comment-history* args))
+  ([commentid userid]
   (let [comment (first (get-comments {:where (str "id = " commentid)}))
 	user (first (get-users {:where (str "id = " userid)}))
 	comment_history (first (get-comment-history* {:where (str "user_id = " userid 
@@ -20,7 +23,7 @@
       {:id (comment_history :id)
        :karma (comment_history :karma)
        :comment comment
-       :user user})))
+       :user user}))))
 
 (defn- add-comment-history [userid commentid karma]
   (let [cols [:comment_id :user_id :karma]

@@ -1,9 +1,9 @@
 (ns trends.controllers.trends
   (:use [compojure]
+	[trends.general]
 	[trends.views.layout]
 	[trends.security]
 	[trends.models.user]
-	[trends.models.trend]
 	[trends.models.comment]))
 
 (defn- display-trend [user request]
@@ -14,7 +14,7 @@
       (redirect-to "/404.html"))))
 
 (defn- points-to-apply [userid trendid dir]
-  (let [h (get-comment-history userid trendid)]
+  (let [h (get-comment-history trendid userid)]
     (if (not= nil h)
       (let [karma (h :karma)]
 	(cond 
@@ -43,10 +43,12 @@
 	 [:br]
 	 [:input {:type "submit", :value "submit"}]]))
 
+; not finished
 (defn- submit-post [user request]
   (let [params (request :params)]
-	(add-trend (user :id) (params :subject) (params :trend))
+
 	(redirect-to "/trend/list")))
+
 
 (defn- show-trends [trends]
   (if (= (first trends) nil) 
@@ -66,10 +68,11 @@
     (page user (vec (concat (list :div) (show-trends trends))))))
 
 (defn trend-context []
-  (list (GET "/vote/:id/:dir" (logged-in-only vote request))
-	(GET "/submit" (logged-in-only submit request))
-	(POST "/submit" (logged-in-only submit-post request))
-	(GET "/list" (with-user show-list request))
-	(GET "/id/:id" (with-user display-trend request))
-	(ANY "*" (redirect-to "/404.html"))))
+  (list
+   (GET "/vote/:id/:dir" (logged-in-only vote request))
+   (GET "/submit" (logged-in-only submit request))
+   (POST "/submit" (logged-in-only submit-post request))
+   (GET "/list" (with-user show-list request))
+   (GET "/id/:id" (with-user display-trend request))
+   (ANY "*" (redirect-to "/404.html"))))
 
