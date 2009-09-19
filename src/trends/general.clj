@@ -25,31 +25,33 @@
 (defn timestamp []
   (. (new Date) getTime))
 
-;; for now, connection is setup in the two functions with-user and logged-in-only.
 (def db {:classname   "org.sqlite.JDBC"
 	 :subprotocol "sqlite"
 	 :subname     "trends.db"})
 
+(defmacro db-test [& body]
+  `(with-connection db
+     ~@body))
+
 (defn db-find 
   "Syntax: {:where \"x = y\", :orderby \"z\", :limit a}"
-  [table args]
-  (let [query 
+  [table & args]
+  (let [arg (if (= nil args) {}
+		(first args))
+	query 
 	(str "select * from " table
-	     (if (args :where)
-	       (str " where " (args :where)))
-	     (if (args :orderby)
-	       (str " order by " (args :orderby)))
-	     (if (args :limit)
-	       (str " limit " (args :limit))))]
+	     (if (arg :where)
+	       (str " where " (arg :where)))
+	     (if (arg :orderby)
+	       (str " order by " (arg :orderby)))
+	     (if (arg :limit)
+	       (str " limit " (arg :limit))))]
     (with-query-results results [query]
       (doseq [record results])
       results)))
 
-(defn db-insert [table cols vals]
-  (insert-values table 
-		 cols
-		 vals))
-
+(defmacro db-insert [table cols & vals]
+  `(insert-values ~table ~cols ~@vals))
 
 (defn db-update 
   "query syntax: [\"field=?\" field]

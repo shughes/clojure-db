@@ -13,11 +13,6 @@
    [clojure.contrib.json.read]
    [compojure]))
 
-
-(defn- logout []
-  [302 {:headers {"Location" "/login"
-		  "Set-Cookie" "userdata=nil; expires=Sat, 01-Jan-2000 00:00:00 GMT"}}])
-
 (defn- my-context [ctx ret]
   (let [pattern (re-pattern (str "^" ctx "(/.*)?"))]
     (fn [request]
@@ -26,18 +21,48 @@
 	 :headers {"Content-type" "text/html"}
 	 :body ret}))))
 
-(defn- my-route [request]
-  {:status 200
-   :headers {"Content-Type" "text/html"}
-   :body "what up playa"})
-
 (defroutes webservice
+  (GET "/test" (db-test 
+		 (str (security/logged-in? request))))
+
+  (fn [request] (if (= (request :uri) "/test")
+    {:session {:password (security/md5 "stok6394")}, :status 200, :body "waht up everybody"}))
+
+  (GET "/test"
+    {:session {:password (security/md5 "stok6394")}
+     :body "Die"})
+  (GET "/test2"
+    (do (def tmp session)
+	"die"))
+  (GET "/clear"  [(clear-session) (redirect-to "/test2")])
+
+  (ANY "/logout" (login/logout))
   (route-context "/users" (users/users-context))
   (route-context "/trend" (trend/trend-context))
   (route-context "/login" (login/login-context))
   (ANY "/:name.css" (serve-file (str (params :name) ".css")))
-  (ANY "/logout" (logout))
-  (route-context 
-   "/" 
-   (list (ANY #"(/*)" (security/with-user trend/show-list request))))
+  (route-context "/" (list (ANY #"(/*)" (security/with-user trend/show-list request))))
   (ANY "/*" [404 (layout/error-page-view)]))
+
+
+;; add session capability to be stored as cookies.
+(decorate webservice
+	  (with-session :cookie))
+
+(defn- with-header [handler header value]
+  (fn [request]
+    (let [response (handler request)]
+      (assoc-in response [:headers header] value))))
+
+(defn hello-world [request]
+  (let [body "word"]
+    {:status 200
+     :headers {"Content-Type" "text/html"}
+     :body body}))
+
+(decorate hello-world
+	  (with-header "Test" "test value"))
+
+;(def server2 (run-server {:port 8081} "/*" (servlet hello-world)))
+;(start server2)
+

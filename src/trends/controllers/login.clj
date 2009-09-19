@@ -7,24 +7,30 @@
    [trends.models.user]
    [compojure]))
 
-(defn- login-view [user request]
-  (page user
-    [:form {:method "post"}
-     "User name: "
-     [:input {:name "username", :type "text"}]
-     [:br]
-     "Password: "
-     [:input {:name "password", :type "password"}]
-     [:br]
-     [:input {:type "submit" :value "Login"}]]))
+(defn logout []
+  [(clear-session)
+   (redirect-to "/login")])
 
-(defn- login-post [request]
+(defn- login-view [user request]
+  (page 
+   user
+   (html [:h1 "Login"]
+   [:form {:method "post"}
+    "User name: "
+    [:input {:name "username", :type "text"}]
+    [:br]
+    "Password: "
+    [:input {:name "password", :type "password"}]
+    [:br]
+    [:input {:type "submit" :value "Login"}]])))
+
+(defn login-post [request]
   (let [params (request :params)
-	user (first (get-users {:where (str "username='" (params :username) "'")}))
-	userdata (setup-session (params :username) (params :password))]
-    (if (not= nil userdata)
-      [302 {:headers {"Location" "/" 
-		      "Set-Cookie" ((userdata :headers) "Set-Cookie")}}]
+	user (first (get-users {:where (str "username='" (params :username) "'")}))]
+    (if (not= nil user)
+      [(session-assoc :username (user :username))
+       (session-assoc :password (user :password))
+       (redirect-to "/")]
       (redirect-to "/login"))))
 
 (defn login-context []

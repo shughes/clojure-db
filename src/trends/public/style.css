@@ -15,3 +15,7 @@ ul.menu li {
 #content {
     clear: both;
 }
+
+#content ul li {
+    margin-bottom: 10px;
+}
