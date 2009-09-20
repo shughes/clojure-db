@@ -1,5 +1,6 @@
 (ns trends.models.user
   (:use 
+   [trends.models.comment]
    [trends.general]))
 
 (derive java.lang.Integer ::int)
@@ -7,8 +8,19 @@
 
 (defstruct -user :name :username :password)
 
-(defn get-users [args]
-  (db-find "users" args))
+(defn get-users [& args]
+  (if (= nil args) 
+    (db-find "users")
+    (db-find "users" (first args))))
+
+(defn get-user-karma [user]
+  (loop [comments (get-comments {:where (str "userid=" (user :id))})
+	 k 0]
+    (if (= nil (first comments)) 
+      k
+      (let [comment (first comments)
+	    karma (get-karma (comment :id))]
+	(recur (rest comments) (+ k karma))))))
 
 (defmulti get-user class)
 

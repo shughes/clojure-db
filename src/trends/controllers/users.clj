@@ -4,6 +4,7 @@
   (:use 
    [trends.controllers.login]
    [trends.models.user]
+   [trends.models.comment]
    [trends.views.layout]
    [trends.security]
    [trends.general]
@@ -59,8 +60,29 @@
 	 (redirect-to "/")])
       (redirect-to "/users/register"))))
 
+(defn- get-user-karma [user]
+  (loop [comments (get-comments {:where (str "userid=" (user :id))})
+	 k 0]
+    (let [comment (first comments)]
+      (if (= nil comment) 
+	k
+	(recur (rest comments) (+ k (comment :karma)))))))
+
+(defn- adjust-user-karma []
+  (loop [users (get-users), result []]
+    (if (= nil (first users)) result
+	(let [user (first users)
+	      karma (get-user-karma user)]
+	  (recur (rest users) (conj result {:id (user :id), :karma karma}))))))
+
+(db-test (adjust-user-karma))
+
+(defn- display-leaders [user request]
+  )
+
 (defn users-context []
   (list 
+   (GET "/leaders" (with-user display-leaders request))
    (GET "/register" (with-user register request))
    (POST "/register" (with-user register-post request))
    (POST "/edit/:id" (logged-in-only edit-post request))

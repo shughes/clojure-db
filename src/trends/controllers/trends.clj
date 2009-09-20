@@ -112,11 +112,7 @@
       (set-comment new-comment))))
 
 (defn test-karma []
-  (db-test 
-    (adjust-ranks)
-    ;(get-new-rank (get-comment 1))
-    ))
-  
+  (db-test (adjust-ranks)))
 
 
 (defn- points-to-apply 

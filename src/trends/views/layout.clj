@@ -6,18 +6,14 @@
   (:import
    [java.security NoSuchAlgorithmException MessageDigest]))
 
-(defn- show-username [user]
+(defn- logged-in-menus [user]
   (if (not= user nil)
-    [:li (link-to (str "/users/edit/" (user :id)) (user :username))]))
-
-(defn- show-login-menu [user]
-  (if (not= user nil)
-    [:li (link-to "/logout" "logout")]
-    [:li (link-to "/login" "login")]))
-
-(defn- show-register-menu [user]
-  (if (= user nil)
-    [:li (link-to "/users/register" "register")]))
+    (html
+     [:li (link-to (str "/users/edit/" (user :id)) (user :username))]
+     [:li (link-to "/logout" "logout")])
+    (html
+     [:li (link-to "/login" "login")]
+     [:li (link-to "/users/register" "register")])))
 
 (defn page [user content]
   (html
@@ -25,10 +21,9 @@
     [:body 
      [:ul {:class "menu"} 
       [:li (link-to "/trend/list" "home")]
+      [:li (link-to "/users/leaders" "leaders")]
       [:li (link-to "/trend/submit" "submit")]
-      (show-username user)
-      (show-login-menu user)
-      (show-register-menu user)]
+      (logged-in-menus user)]
       [:div {:id "content"} content]]]))
 
 (defn error-page-view []
