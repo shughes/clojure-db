@@ -41,6 +41,7 @@
   (route-context "/trend" (trend/trend-context))
   (route-context "/login" (login/login-context))
   (ANY "/:name.css" (serve-file (str (params :name) ".css")))
+  (ANY "/:name.otf" (serve-file (str (params :name) ".otf")))
   (route-context "/" (list (ANY #"(/*)" (security/with-user trend/show-list request))))
   (ANY "/*" [404 (layout/error-page-view)]))
 

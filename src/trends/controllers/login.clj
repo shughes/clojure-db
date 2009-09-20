@@ -16,13 +16,14 @@
    user
    (html [:h1 "Login"]
    [:form {:method "post"}
-    "User name: "
-    [:input {:name "username", :type "text"}]
-    [:br]
-    "Password: "
-    [:input {:name "password", :type "password"}]
-    [:br]
-    [:input {:type "submit" :value "Login"}]])))
+    [:ul.list
+     [:li.wide [:label {:for "username"} "User name:"]]
+     [:li [:input {:id "username", :name "username", :type "text"}]]]
+    [:ul.list
+     [:li.wide [:label {:for "password"} "Password:"]]
+     [:li [:input {:id "password", :name "password", :type "password"}]]]
+    [:ul.list
+     [:li [:input {:type "submit" :value "Login"}]]]])))
 
 (defn login-post [request]
   (let [params (request :params)

@@ -17,10 +17,14 @@
 
 (defn page [user content]
   (html
+   "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\""
+   " \"http://www.w3.org/TR/html4/strict.dtd\">"
    [:html [:head [:link {:rel "stylesheet" :href "/style.css"}]]
     [:body 
      [:ul {:class "menu"} 
+
       [:li (link-to "/trend/list" "home")]
+      [:li (link-to "/trend/comments" "comments")]
       [:li (link-to "/users/leaders" "leaders")]
       [:li (link-to "/trend/submit" "submit")]
       (logged-in-menus user)]

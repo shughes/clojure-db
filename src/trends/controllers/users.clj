@@ -17,16 +17,17 @@
 	       {:name "", :username "", :password ""})]
     (html [:h1 title]
 	  [:form {:method "post"}
-	   [:label {:for "name"} "Name: "]
-	   [:input {:type "text" :name "name" :id "name" :value (user :name)}]
-	   [:br]
-	   [:label {:for "username"} "Username: "]
-	   [:input {:type "text" :name "username" :id "username" :value (user :username)}]
-	   [:br]
-	   [:label {:for "password"} "Password: "]
-	   [:input {:type "password" :name "password" :id "password"}]
-	   [:br]
-	   [:input {:type "submit" :value submit}]])))
+	   [:ul.list
+	    [:li.wide [:label {:for "name"} "Name: "]]
+	    [:li [:input {:type "text" :name "name" :id "name" :value (user :name)}]]]
+	   [:ul.list
+	    [:li.wide [:label {:for "username"} "Username: "]]
+	    [:li [:input {:type "text" :name "username" :id "username" :value (user :username)}]]]
+	   [:ul.list
+	    [:li.wide [:label {:for "password"} "Password: "]]
+	    [:li [:input {:type "password" :name "password" :id "password"}]]]
+	   [:ul.list
+	    [:li [:input {:type "submit" :value submit}]]]])))
 
 (defn- edit [user request]
   (page user (reg-form "Edit" "edit" user)))
@@ -60,25 +61,31 @@
 	 (redirect-to "/")])
       (redirect-to "/users/register"))))
 
-(defn- get-user-karma [user]
-  (loop [comments (get-comments {:where (str "userid=" (user :id))})
-	 k 0]
-    (let [comment (first comments)]
-      (if (= nil comment) 
-	k
-	(recur (rest comments) (+ k (comment :karma)))))))
-
-(defn- adjust-user-karma []
+(defn- get-user-karma-lst []
   (loop [users (get-users), result []]
     (if (= nil (first users)) result
 	(let [user (first users)
 	      karma (get-user-karma user)]
 	  (recur (rest users) (conj result {:id (user :id), :karma karma}))))))
 
-(db-test (adjust-user-karma))
+(defn- adjust-user-karma []
+  (doseq [node (adjust-user-karma)]
+    (let [user (get-user (node :id))]
+      (set-user (assoc user :karma (node :karma))))))
+
+(defn- get-leaders []
+  (loop [leaders (get-users {:orderby "karma desc", :limit "100"})
+	 result (html "")]
+    (if (= nil (first leaders)) 
+      result
+      (let [leader (first leaders)]
+	(recur (rest leaders) 
+	       (str result (html [:li (leader :username) " " (leader :karma)])))))))
 
 (defn- display-leaders [user request]
-  )
+  (page 
+   user
+   (html [:h1 "Leaders"] [:ol (get-leaders)])))
 
 (defn users-context []
   (list 

@@ -1,27 +1,35 @@
 (ns trends.models.comment
   (:use
    [trends.general]
-   [trends.models.user]
    [clojure.contrib.sql]))
 
+(declare get-comments)
+
+(declare get-karma)
+
+(use 'trends.models.user)
+
 (derive clojure.lang.PersistentArrayMap ::map)
+
 (derive java.lang.Integer ::int)
+
+(defn- get-comment-history* [args]
+  (trends.general/db-find "comment_history" args))
 
 
 (defn get-comments [& args]
   (if (= nil args) (db-find "comments")
       (trends.general/db-find "comments" (first args))))
 
-(defmulti get-comment class)
-
-(defmethod get-comment ::map [args]
-  (first (get-comments args)))
-
-(defmethod get-comment ::int [id]
-  (get-comment {:where (str "id=" id)}))
-
-(defn- get-comment-history* [args]
-  (trends.general/db-find "comment_history" args))
+(defn get-karma
+  "Adds up total karma points for a comment"
+  [id]
+  (loop [lst (get-comment-history* {:where (str "comment_id=" id)})
+	 result 0]
+    (let [history (first lst)]
+      (if (= nil history) 
+	result
+	(recur (rest lst) (+ result (history :karma)))))))
 
 (defn get-comment-history 
   "With 2 args, returns comment history or nil if it doesn't exist"
@@ -29,7 +37,7 @@
      (get-comment-history* args))
   ([userid commentid]
      (let [comment (first (get-comments {:where (str "id = " commentid)}))
-	   user (first (get-users {:where (str "id = " userid)}))
+	   user (get-user userid)
 	   comment_history (first (get-comment-history* {:where (str "user_id = " userid 
 								     " and comment_id = " commentid)}))]
        (if (or (= nil comment) (= nil user) (= nil comment_history))
@@ -39,15 +47,13 @@
 	  :comment comment
 	  :user user}))))
 
-(defn get-karma
-  "Adds up total karma points for a comment"
-  [id]
-  (loop [lst (get-comment-history {:where (str "comment_id=" id)})
-	 result 0]
-    (let [history (first lst)]
-      (if (= nil history) 
-	result
-	(recur (rest lst) (+ result (history :karma)))))))
+(defmulti get-comment class)
+
+(defmethod get-comment ::map [args]
+  (first (get-comments args)))
+
+(defmethod get-comment ::int [id]
+  (get-comment {:where (str "id=" id)}))
 
 (defn- add-comment-history [userid commentid karma]
   (let [cols [:comment_id :user_id :karma]

@@ -32,10 +32,6 @@
 			     (link-to (str "/trend/id/" (comment :id)) "reply")
 			     (display-comments user (comment :id))]))))))
 
-(defn test-comments []
-  (db-test (display-comments nil 3)))
-
-
 (defn- display-trend [user request]
   (let [params (request :params)
 	trend (first (get-comments {:where (str "id = " (params :id))}))]
@@ -94,8 +90,6 @@
 	  num (if (> base 0) (expt base 0.8) base)
 	  den (expt (+ age 2) 1.8)
 	  rank (/ num den)]
-      (if (= karma 5)
-	(println "id: " (comment :id) " karma " karma " rank: " rank))
       rank)))
 
 (defn- updated-ranks []
@@ -146,17 +140,32 @@
 	[:div
 	 [:h1 "Submit"]
 	 [:form {:method "post"}
-	  "title " [:input {:name "subject", :type "text"}]
-	  [:br]
-	  "trend " [:textarea {:name "trend"}]
-	  [:br]
-	  [:input {:type "submit", :value "submit"}]]]))
+	  [:ul.list
+	   [:li.left [:label {:for "subject"} "title:"]]
+	   [:li [:input {:name "subject", :id "subject", :type "text"}]]]
+	  [:ul.list
+	   [:li.left [:label {:for "trend"} "trend:"]]
+	   [:li [:textarea {:name "trend", :id "trend"}]]]
+	  [:ul.list
+	   [:li [:input {:type "submit", :value "submit"}]]]]]))
 
 (defn- submit-post [user request]
   (let [params (request :params)]
     (add-comment (struct -comment nil true (params :subject) (params :trend) 0.0 (user :id) -1))
     (redirect-to "/trend/list")))
 
+(defn- get-display-date [time]
+  (let [hours (int (get-hours time (now)))
+	minutes (int (get-minutes time (now)))
+	ending (cond (> 60 minutes) "minutes"
+		     (> 24 hours) "hours"
+		     (= 1 hours) "hour"
+		     (> 48 hours) "day"
+		     (<= 48 hours) "days")]
+    (cond (< minutes 60) (str minutes " " ending " ago")
+	  (< hours 24) (str (int hours) " " ending " ago")
+	  (>= hours 24) (str (int (/ hours 24)) " " ending " ago"))))
+    
 (defn- get-karma-total 
   "Adds up total karma points for a comment"
   [lst]
@@ -169,25 +178,43 @@
     ""
     (let [trend (first trends)
 	  history (get-comment-history {:where (str "comment_id = " (trend :id))})]
-      (concat 
-       (vector (link-to (str "/trend/vote/" (trend :id) "/up") "up") 
-	       "/"
-	       (link-to (str "/trend/vote/" (trend :id) "/down") "down")
-	       " "
-	       [:b (link-to (str "/trend/id/" (trend :id)) (trend :subject)) " "] 
-		(get-karma-total history) [:br])
-       (show-trends (rest trends))))))
+      (str (html			
+	    [:ul.list
+	     [:li.left (link-to (str "/trend/vote/" (trend :id) "/up") "up") 
+	      "/"
+	      (link-to (str "/trend/vote/" (trend :id) "/down") "down")]
+	     [:li
+	      [:b (link-to (str "/trend/id/" (trend :id)) (trend :subject))]
+	      [:br]
+	      (get-karma-total history) " points by "
+	      ((get-user (trend :userid)) :username) " "
+	      (get-display-date (trend :time_posted))]]
+	    [:br])
+	   (show-trends (rest trends))))))
 
 (defn show-list [user request]
   (let [trends (get-comments {:where "is_trend = 'true'", :orderby "weight desc", :limit 10})]
-    (page user (vec (concat (list :div) (show-trends trends))))))
+    (page user (show-trends trends))))
+
+(defn- get-comment-list [comments]
+  (if (= (first comments) nil) ""
+      (let [comment (first comments)
+	    karma (get-karma (comment :id))]
+	(str (html [:li (comment :subject) " " karma])
+	     (get-comment-list (rest comments))))))
+
+(defn- show-comments [user request]
+  (let [comments (get-comments {:where "parentid = -1", :orderby "weight desc"})]
+    (html [:h1 "Comments"]
+	  [:ul.list
+	   (get-comment-list comments)])))
 
 (defn trend-context []
   (list
+   (GET "/comments" (with-user show-comments request))
    (GET "/vote/:id/:dir" (logged-in-only vote request))
    (GET "/submit" (logged-in-only submit request))
    (POST "/submit" (logged-in-only submit-post request))
    (GET "/list" (with-user show-list request))
    (GET "/id/:id" (with-user display-trend request))
-   (POST "/id/:id" (logged-in-only submit-comment request))
-   (ANY "*" (redirect-to "/404.html"))))
+   (POST "/id/:id" (logged-in-only submit-comment request))))
