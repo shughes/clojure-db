@@ -8,9 +8,16 @@
 	[trends.models.user]
 	[trends.models.comment]))
 
-(defn- round-to [n x]
-  (let [pre (expt 10 x)]
-    (double (/ (round (* n pre)) pre))))
+(defn- get-info-line [comment]
+  (html
+   (get-karma (comment :id)) " points by "
+   ((get-user (comment :userid)) :username) " "
+   (get-display-time (comment :time_posted))))
+
+(defn- get-points-line [comment]
+  (html (link-to (str "/trend/vote/" (comment :id) "/up") "up") 
+	"/"
+	(link-to (str "/trend/vote/" (comment :id) "/down") "down")))
 
 (defn- display-comments [user parentid]
     (loop [comments (get-comments {:where (str "parentid=" parentid)
@@ -21,16 +28,14 @@
 	(= nil (first comments)) view
 	:else (let [comment (first comments)]
 	  (recur (rest comments) 
-		 (conj view [:li 
-			     (link-to (str "/trend/vote/" (comment :id) "/up") "up") "/"
-			     (link-to (str "/trend/vote/" (comment :id) "/down") "down") " | "
-			     (get-karma (comment :id)) " points by " 
-			     ((get-user (comment :userid)) :username)
-			     [:br]
-			     (comment :comment)
-			     [:br]
-			     (link-to (str "/trend/id/" (comment :id)) "reply")
-			     (display-comments user (comment :id))]))))))
+		 (conj view 
+		       [:li (get-points-line comment) " "
+			(get-info-line comment)
+			[:br]
+			(comment :comment)
+			[:br]
+			(link-to (str "/trend/id/" (comment :id)) "reply")
+			(display-comments user (comment :id))]))))))
 
 (defn- display-trend [user request]
   (let [params (request :params)
@@ -38,14 +43,12 @@
     (if (not= nil trend)
       (page 
        user 
-       (html (link-to (str "/trend/vote/" (trend :id) "/up") "up") "/"
-	     (link-to (str "/trend/vote/" (trend :id) "/down") "down") " | "
+       (html (get-points-line trend) " | "
 	     (if (= "true" (trend :is_trend)) 
-	       [:b (trend :subject)]
+	       (trend :subject)
 	       (link-to (str "/trend/id/" (trend :parentid)) "parent"))
 	     [:br]
-	     [:b (get-karma (trend :id))] " points by "
-	     [:b ((get-user {:where (str "id=" (trend :userid))}) :username)]
+	     (get-info-line trend)
 	     [:br]
 	     (trend :comment)
 	     [:br]
@@ -68,18 +71,6 @@
 		 :userid (user :id)}]
     (add-comment comment)
     (redirect-to (str "/trend/id/" (params :id)))))
-
-(defn- get-minutes [start end]
-  (let [diff (- (double end) (double start))
-	seconds (/ diff 1000)
-	minutes (/ seconds 60)]
-    minutes))
-
-(defn- get-hours [start end]
-  (/ (get-minutes start end) 60))
-
-(defn- now []
-  (.getTime (new Date)))
 
 (defn- get-new-rank [comment]
   (if (= nil comment)
@@ -153,18 +144,6 @@
   (let [params (request :params)]
     (add-comment (struct -comment nil true (params :subject) (params :trend) 0.0 (user :id) -1))
     (redirect-to "/trend/list")))
-
-(defn- get-display-date [time]
-  (let [hours (int (get-hours time (now)))
-	minutes (int (get-minutes time (now)))
-	ending (cond (> 60 minutes) "minutes"
-		     (> 24 hours) "hours"
-		     (= 1 hours) "hour"
-		     (> 48 hours) "day"
-		     (<= 48 hours) "days")]
-    (cond (< minutes 60) (str minutes " " ending " ago")
-	  (< hours 24) (str (int hours) " " ending " ago")
-	  (>= hours 24) (str (int (/ hours 24)) " " ending " ago"))))
     
 (defn- get-karma-total 
   "Adds up total karma points for a comment"
@@ -173,6 +152,8 @@
     (cond (= nil history) 0
 	  :else (+ (history :karma) (get-karma-total (rest lst))))))
 
+
+
 (defn- show-trends [trends]
   (if (= (first trends) nil) 
     ""
@@ -180,15 +161,11 @@
 	  history (get-comment-history {:where (str "comment_id = " (trend :id))})]
       (str (html			
 	    [:ul.list
-	     [:li.left (link-to (str "/trend/vote/" (trend :id) "/up") "up") 
-	      "/"
-	      (link-to (str "/trend/vote/" (trend :id) "/down") "down")]
+	     [:li.left (get-points-line trend)]
 	     [:li
 	      [:b (link-to (str "/trend/id/" (trend :id)) (trend :subject))]
 	      [:br]
-	      (get-karma-total history) " points by "
-	      ((get-user (trend :userid)) :username) " "
-	      (get-display-date (trend :time_posted))]]
+	      (get-info-line trend)]]
 	    [:br])
 	   (show-trends (rest trends))))))
 
@@ -198,16 +175,22 @@
 
 (defn- get-comment-list [comments]
   (if (= (first comments) nil) ""
-      (let [comment (first comments)
-	    karma (get-karma (comment :id))]
-	(str (html [:li (comment :subject) " " karma])
-	     (get-comment-list (rest comments))))))
+      (let [comment (first comments)]
+	(str (html [:ul.list 
+		    [:li.left (get-points-line comment)]
+		    [:li (get-info-line comment) " " 
+		     (link-to (str "/trend/id/" (comment :id)) "link")
+		     " | "
+		     (link-to (str "/trend/id/" (comment :parentid)) "parent")
+		     [:br]
+		     (comment :comment)]]
+		   (get-comment-list (rest comments)))))))
 
 (defn- show-comments [user request]
-  (let [comments (get-comments {:where "parentid = -1", :orderby "weight desc"})]
-    (html [:h1 "Comments"]
-	  [:ul.list
-	   (get-comment-list comments)])))
+  (let [comments (get-comments {:where "parentid != -1", :orderby "weight desc"})]
+    (page user
+	  (html [:h1 "Comments"]
+		(get-comment-list comments)))))
 
 (defn trend-context []
   (list

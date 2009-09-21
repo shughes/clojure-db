@@ -4,6 +4,7 @@
   (:use
    [compojure]
    [trends.views.layout]
+   [clojure.contrib.math]
    [clojure.contrib.sql]))
 
 (declare *context*)
@@ -58,3 +59,31 @@
    vals syntax: {:key val}"
   [table query vals]
   (transaction (update-values table query vals)))
+
+(defn get-minutes [start end]
+  (let [diff (- (double end) (double start))
+	seconds (/ diff 1000)
+	minutes (/ seconds 60)]
+    minutes))
+
+(defn get-hours [start end]
+  (/ (get-minutes start end) 60))
+
+(defn now []
+  (.getTime (new Date)))
+
+(defn get-display-time [time]
+  (let [hours (int (get-hours time (now)))
+	minutes (int (get-minutes time (now)))
+	ending (cond (> 60 minutes) "minutes"
+		     (> 24 hours) "hours"
+		     (= 1 hours) "hour"
+		     (> 48 hours) "day"
+		     (<= 48 hours) "days")]
+    (cond (< minutes 60) (str minutes " " ending " ago")
+	  (< hours 24) (str (int hours) " " ending " ago")
+	  (>= hours 24) (str (int (/ hours 24)) " " ending " ago"))))
+
+(defn round-to [n x]
+  (let [pre (expt 10 x)]
+    (double (/ (round (* n pre)) pre))))

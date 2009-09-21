@@ -5,7 +5,7 @@ body {
 }
 ul.menu li {
   float: left;
-  width: 70px;
+  padding: 0 5px 0 5px;
   text-align: left;
   list-style-type: none;
   margin-bottom: 15px;
