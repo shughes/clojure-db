@@ -1,12 +1,16 @@
 (ns trends.controllers.trends
   (:import [java.util Date Calendar])
   (:use [compojure]
+	[clojure.memcached]
 	[clojure.contrib.math]
 	[trends.general]
 	[trends.views.layout]
 	[trends.security]
 	[trends.models.user]
 	[trends.models.comment]))
+
+(def #^{:private true} sockets (setup-sockets ["localhost:11211"]))
+
 
 (defn- get-info-line [comment]
   (html
@@ -99,7 +103,6 @@
 (defn test-karma []
   (db-test (adjust-ranks)))
 
-
 (defn- points-to-apply 
   "Returns points to apply to comment. If user has voted on comment before,
    they can only vote in the opposite direction. Otherwise, 0 points is 
@@ -152,8 +155,6 @@
     (cond (= nil history) 0
 	  :else (+ (history :karma) (get-karma-total (rest lst))))))
 
-
-
 (defn- show-trends [trends]
   (if (= (first trends) nil) 
     ""
@@ -169,9 +170,22 @@
 	    [:br])
 	   (show-trends (rest trends))))))
 
+(defn- reset-trend-list [table action]
+  (cond 
+    (= table :comments) (if (= action :insert) 
+			  (delete-val sockets "trend/list"))
+    (= table :comment_history) (if (or (= action :update) (= action :insert))
+				 (delete-val sockets "trend/list"))))
+
 (defn show-list [user request]
-  (let [trends (get-comments {:where "is_trend = 'true'", :orderby "weight desc", :limit 10})]
-    (page user (show-trends trends))))
+  (let [cached-trends (get-val sockets "trend/list")]
+    (if (= nil cached-trends)
+      (let [trends (get-comments {:where "is_trend = 'true'", :orderby "weight desc"})
+	    trend-list (show-trends trends)]
+	(set-val sockets "trend/list" trend-list)
+	(page user (str "not caching" trend-list)))
+      (do 
+	(page user (str "caching " cached-trends))))))
 
 (defn- get-comment-list [comments]
   (if (= (first comments) nil) ""
@@ -191,6 +205,8 @@
     (page user
 	  (html [:h1 "Comments"]
 		(get-comment-list comments)))))
+
+(db-bind reset-trend-list)
 
 (defn trend-context []
   (list

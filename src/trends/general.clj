@@ -51,14 +51,31 @@
       (doseq [record results])
       results)))
 
+(def #^{:private true} bindings (ref (list nil)))
+
+(defn db-bind [f]
+  (dosync
+   (ref-set bindings (conj @bindings f))))
+
+(defn call-bind [table action]
+  (loop [lst @bindings]
+    (if (= (first lst) nil)
+      nil
+      (do
+	((first lst) table action)
+	(recur (rest lst))))))
+
 (defmacro db-insert [table cols & vals]
-  `(insert-values ~table ~cols ~@vals))
+  `(do 
+     (call-bind ~table :insert)
+     (insert-values ~table ~cols ~@vals)))
 
 (defn db-update 
   "query syntax: [\"field=?\" field]
    vals syntax: {:key val}"
   [table query vals]
-  (transaction (update-values table query vals)))
+  (transaction (update-values table query vals))
+  (call-bind table :update))
 
 (defn get-minutes [start end]
   (let [diff (- (double end) (double start))
