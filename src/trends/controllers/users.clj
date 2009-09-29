@@ -2,6 +2,7 @@
   (:require
    [clojure.contrib.str-utils2 :as s2])
   (:use 
+   [clojure.memcached]
    [trends.controllers.login]
    [trends.models.user]
    [trends.models.comment]
@@ -83,9 +84,20 @@
 	       (str result (html [:li (leader :username) " " (leader :karma)])))))))
 
 (defn- display-leaders [user request]
-  (page 
-   user
-   (html [:h1 "Leaders"] [:ol (get-leaders)])))
+  (let [leader-cache (get-val sockets "users/leaders")]
+    (if (= nil leader-cache)
+      (let [leaders (get-leaders)]
+	(set-val sockets "users/leaders" leaders)
+	(page user (html [:h1 "Leaders"] "not caching" [:ol leaders])))
+      (page user (html [:h1 "Leaders"] "caching" [:ol leader-cache])))))
+
+(defn- reset-user-list [table action]
+  (cond 
+    (= table :users)
+    (if (or (= action :insert) (= action :update))
+      (delete-val sockets "users/leaders"))))
+
+(db-bind reset-user-list)
 
 (defn users-context []
   (list 

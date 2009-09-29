@@ -31,10 +31,8 @@
   (db-update :users ["id=?" (user :id)] user))
 
 (defn add-user [user]
-  (db-insert :users 
-	     [:name :username :password]
+  (db-insert :users [:name :username :password]
 	     [(user :name) (user :username) (user :password)]))
-
 
 (defn get-user-karma [user]
   (loop [comments (get-comments {:where (str "userid=" (user :id))})

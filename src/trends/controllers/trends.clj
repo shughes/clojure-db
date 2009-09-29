@@ -1,6 +1,8 @@
 (ns trends.controllers.trends
   (:import [java.util Date Calendar])
   (:use [compojure]
+	[clojure.contrib.json.read]
+	[clojure.contrib.json.write]
 	[clojure.memcached]
 	[clojure.contrib.math]
 	[trends.general]
@@ -8,9 +10,6 @@
 	[trends.security]
 	[trends.models.user]
 	[trends.models.comment]))
-
-(def #^{:private true} sockets (setup-sockets ["localhost:11211"]))
-
 
 (defn- get-info-line [comment]
   (html
@@ -172,10 +171,16 @@
 
 (defn- reset-trend-list [table action]
   (cond 
-    (= table :comments) (if (= action :insert) 
-			  (delete-val sockets "trend/list"))
-    (= table :comment_history) (if (or (= action :update) (= action :insert))
-				 (delete-val sockets "trend/list"))))
+    (= table :comments) 
+    (if (or (= action :insert) (= action :update))
+      (do
+	(delete-val sockets "trend/comments")
+	(delete-val sockets "trend/list")))
+    (= table :comment_history) 
+    (if (or (= action :update) (= action :insert))
+      (do
+	(delete-val sockets "trend/comments")
+	(delete-val sockets "trend/list")))))
 
 (defn show-list [user request]
   (let [cached-trends (get-val sockets "trend/list")]
@@ -183,9 +188,8 @@
       (let [trends (get-comments {:where "is_trend = 'true'", :orderby "weight desc"})
 	    trend-list (show-trends trends)]
 	(set-val sockets "trend/list" trend-list)
-	(page user (str "not caching" trend-list)))
-      (do 
-	(page user (str "caching " cached-trends))))))
+	(page user (html [:h1 "News"] "not caching" trend-list)))
+      (page user (html [:h1 "News"] "caching " cached-trends)))))
 
 (defn- get-comment-list [comments]
   (if (= (first comments) nil) ""
@@ -201,10 +205,13 @@
 		   (get-comment-list (rest comments)))))))
 
 (defn- show-comments [user request]
-  (let [comments (get-comments {:where "parentid != -1", :orderby "weight desc"})]
-    (page user
-	  (html [:h1 "Comments"]
-		(get-comment-list comments)))))
+  (let [cached-comments (get-val sockets "trend/comments")]
+    (if (= nil cached-comments)
+      (let [comments (get-comments {:where "parentid != -1", :orderby "weight desc"})
+	    comment-list (get-comment-list comments)]
+	(set-val sockets "trend/comments" comment-list)
+	(page user (html [:h1 "Comments"] "not caching" comment-list)))
+      (page user (html [:h1 "Comments"] "caching" cached-comments)))))
 
 (db-bind reset-trend-list)
 

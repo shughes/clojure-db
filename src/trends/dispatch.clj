@@ -13,6 +13,7 @@
    [clojure.contrib.json.read]
    [compojure]))
 
+
 (defn- my-context [ctx ret]
   (let [pattern (re-pattern (str "^" ctx "(/.*)?"))]
     (fn [request]
@@ -22,19 +23,10 @@
 	 :body ret}))))
 
 (defroutes webservice
-  (GET "/test" (db-test 
-		 (str (security/logged-in? request))))
-
-  (fn [request] (if (= (request :uri) "/test")
-    {:session {:password (security/md5 "stok6394")}, :status 200, :body "waht up everybody"}))
-
-  (GET "/test"
-    {:session {:password (security/md5 "stok6394")}
-     :body "Die"})
-  (GET "/test2"
-    (do (def tmp session)
-	"die"))
-  (GET "/clear"  [(clear-session) (redirect-to "/test2")])
+  ;; JQuery Desktop
+  (ANY "/jquery-desktop" (serve-file "/jquery-desktop/desktop.html"))
+  (ANY "/jquery-desktop/*" (serve-file (request :uri)))
+  (ANY "/assets/*" (serve-file (str "/jquery-desktop" (request :uri))))
 
   (ANY "/logout" (login/logout))
   (route-context "/users" (users/users-context))
@@ -45,25 +37,8 @@
   (route-context "/" (list (ANY #"(/*)" (security/with-user trend/show-list request))))
   (ANY "/*" [404 (layout/error-page-view)]))
 
-
 ;; add session capability to be stored as cookies.
 (decorate webservice
 	  (with-session :cookie))
 
-(defn- with-header [handler header value]
-  (fn [request]
-    (let [response (handler request)]
-      (assoc-in response [:headers header] value))))
-
-(defn hello-world [request]
-  (let [body "word"]
-    {:status 200
-     :headers {"Content-Type" "text/html"}
-     :body body}))
-
-(decorate hello-world
-	  (with-header "Test" "test value"))
-
-;(def server2 (run-server {:port 8081} "/*" (servlet hello-world)))
-;(start server2)
 

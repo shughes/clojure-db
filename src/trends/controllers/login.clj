@@ -12,18 +12,17 @@
    (redirect-to "/login")])
 
 (defn- login-view [user request]
-  (page 
-   user
-   (html [:h1 "Login"]
-   [:form {:method "post"}
-    [:ul.list
-     [:li.wide [:label {:for "username"} "User name:"]]
-     [:li [:input {:id "username", :name "username", :type "text"}]]]
-    [:ul.list
-     [:li.wide [:label {:for "password"} "Password:"]]
-     [:li [:input {:id "password", :name "password", :type "password"}]]]
-    [:ul.list
-     [:li [:input {:type "submit" :value "Login"}]]]])))
+  (page user
+	(html [:h1 "Login"]
+	      [:form {:method "post"}
+	       [:ul.list
+		[:li.wide [:label {:for "username"} "User name:"]]
+		[:li [:input {:id "username", :name "username", :type "text"}]]]
+	       [:ul.list
+		[:li.wide [:label {:for "password"} "Password:"]]
+		[:li [:input {:id "password", :name "password", :type "password"}]]]
+	       [:ul.list
+		[:li [:input {:type "submit" :value "Login"}]]]])))
 
 (defn login-post [request]
   (let [params (request :params)

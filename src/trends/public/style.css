@@ -3,33 +3,37 @@ body {
   font-size: 12px;
   line-height: 15px;
 }
-ul.menu li {
+#wrapper {
+  width: 900px;
+  margin: 0 auto;
+}
+#wrapper ul.menu li {
   float: left;
   padding: 0 5px 0 5px;
   text-align: left;
   list-style-type: none;
   margin-bottom: 15px;
 }
-ol {
+#wrapper ol {
   margin: 0px;
   padding: 0 0 0 15px;
 }
-ol li {
+#wrapper ol li {
   margin: 0px;
   padding: 0px;
 }
-ul.list {
+#wrapper ul.list {
   clear: both;
   margin: 0px;
   padding: 0px;
 }
-ul.list li {
+#wrapper ul.list li {
   float: left;
   list-style-type: none;
   margin: 0px;
   padding: 0px;
 }
-ul.list li.left { width: 60px; }
-ul.list li.wide { width: 80px; }
-#content { clear: both; }
-#content ul li { margin-bottom: 10px; }
+#wrapper ul.list li.left { width: 60px; }
+#wrapper ul.list li.wide { width: 80px; }
+#wrapper #content { clear: both; }
+#wrapper #content ul li { margin-bottom: 10px; }

@@ -3,12 +3,26 @@
    [java.util Date])
   (:use
    [compojure]
+   [clojure.memcached]
    [trends.views.layout]
    [clojure.contrib.math]
    [clojure.contrib.sql]))
 
+
+(def page-routes {1 "/trend/list"
+		  2 "/trend/id"
+		  3 "/trend/vote"
+		  4 "/trend/comments"
+		  5 "/trend/submit"
+		  6 "/login"
+		  7 "/logout"
+		  8 "/users/leaders"
+		  9 "/users/edit"})
+
 (declare *context*)
 (declare db)
+
+(def sockets (setup-sockets ["localhost:11211"]))
 
 (defn route-context
   [ctx route-seq]
@@ -53,7 +67,12 @@
 
 (def #^{:private true} bindings (ref (list nil)))
 
-(defn db-bind [f]
+(defn db-bind 
+  "f is a function that will be called whenever the database is updated.
+   f takes two arguments, table name and action. db-bind's main purpose is 
+   for cases where pages are being cached. Those pages should add a 
+   function using db-bind, which lets them know when to update their cache."
+  [f]
   (dosync
    (ref-set bindings (conj @bindings f))))
 

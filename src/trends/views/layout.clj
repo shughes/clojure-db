@@ -23,17 +23,18 @@
    " \"http://www.w3.org/TR/html4/strict.dtd\">"
    [:html [:head [:link {:rel "stylesheet" :href "/style.css"}]]
     [:body 
-     [:ul.menu
-      [:li (link-to "/trend/list" "home")]
-      [:li "|"]
-      [:li (link-to "/trend/comments" "comments")]
-      [:li "|"]
-      [:li (link-to "/users/leaders" "leaders")]
-      [:li "|"]
-      [:li (link-to "/trend/submit" "submit")]
-      [:li "|"]
-      (logged-in-menus user)]
-      [:div {:id "content"} content]]]))
+     [:div#wrapper
+      [:ul.menu
+       [:li (link-to "/trend/list" "home")]
+       [:li "|"]
+       [:li (link-to "/trend/comments" "comments")]
+       [:li "|"]
+       [:li (link-to "/users/leaders" "leaders")]
+       [:li "|"]
+       [:li (link-to "/trend/submit" "submit")]
+       [:li "|"]
+       (logged-in-menus user)]
+      [:div {:id "content"} content]]]]))
 
 (defn error-page-view []
   "Page Not Found")
