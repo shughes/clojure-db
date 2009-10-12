@@ -2,8 +2,7 @@
   (:import 
    [java.io File BufferedReader InputStreamReader])
   (:require 
-   [clojure.messaging.users :as users]
-   [clojure.contrib.str-utils2 :as s2])
+   [clojure.messaging.users :as users])
   (:use
    [clojure.contrib.json.read :as jread]
    [clojure.contrib.json.write :as jwrite]))
@@ -40,7 +39,7 @@
     (. out (println 
 	    (do-action 
 	     {:action (strip-uri (. req getRequestURI))} 
-	     (jread/read-json (s2/trim (stream-to-string in))))))))
+	     (jread/read-json (.trim (stream-to-string in))))))))
 
 (defn process-get [req resp]
   (. resp (setHeader "Content-Type" "application/json"))

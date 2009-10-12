@@ -1,6 +1,4 @@
 (ns trends.controllers.users
-  (:require
-   [clojure.contrib.str-utils2 :as s2])
   (:use 
    [clojure.memcached]
    [trends.controllers.login]
@@ -36,9 +34,9 @@
 (defn- edit-post [user request]
   (let [params (request :params)
 	new-user {:id (user :id)
-		  :name (s2/trim (params :name))
-		  :username (s2/trim (params :username))
-		  :password (if (= (s2/trim (params :password)) "")
+		  :name (.trim (params :name))
+		  :username (.trim (params :username))
+		  :password (if (= (.trim (params :password)) "")
 			      (user :password)
 			      (md5 (params :password)))}]
     (if (= nil (get-user {:where (str "username='" (new-user :username) "' "

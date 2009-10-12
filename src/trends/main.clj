@@ -7,4 +7,4 @@
   (let [server (run-server {:port 8080} "/*" (servlet webservice))]
     (start server)))
 
-(main)
+;(main)

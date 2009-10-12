@@ -109,7 +109,7 @@
 (defn name-summary [[name1 name2 & others]]
   (println (str name1 ", " name2) "and" (first others)))
 
-(name-summary ["Moe" "Larry" "Curly" "Shemp"])
+;(name-summary ["Moe" "Larry" "Curly" "Shemp"])
 
 ;; macros
 

@@ -2,8 +2,7 @@
 
 (ns clojure.xml
   (:use [clojure.contrib.str-utils])
-  (:require [clojure.contrib.zip-filter.xml :as contrib-xml]
-	    [clojure.contrib.str-utils2 :as str2]))
+  (:require [clojure.contrib.zip-filter.xml :as contrib-xml]))
 
 
 (defstruct element-node :tag :attrs :content)
