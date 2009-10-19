@@ -1,9 +1,8 @@
-(ns btree.test
+(ns db.test
   (:import [java.nio.channels FileChannel]
 	   [java.nio ByteBuffer]
 	   [java.io File FileInputStream FileOutputStream DataOutputStream BufferedInputStream]))
 
-(def file (new File "/Users/shughes/Desktop/test.db"))
 
 (defn file-io []
   (def f (new FileOutputStream file))
@@ -18,13 +17,6 @@
 	(. ch (write out))
 	(recur))))
   (.close ch))
-
-
-(def f2 (new FileInputStream file))
-(def ch2 (.getChannel f2))
-(def bb (. ByteBuffer (allocateDirect (.length file))))
-
-(. ch2 (read bb))
 
 (defn header [buf]
   (. buf (position 0))
@@ -41,19 +33,19 @@
 
 (defn get-bytes [buf]
   (. buf (position 0))
-  (loop [result {} i 0]
+  (loop [result '()]
     (if (.hasRemaining buf)
-      (recur (assoc result i (byte (.get buf))) (inc i))
+      (recur (concat result (list (.get buf))))
       result)))
 
-(defn byte-seq [rdr]
-  (let [result (. rdr read)]
-    (if (= result -1)
-      (do (.close rdr) nil)
-      (lazy-seq (cons result (byte-seq rdr))))))
+(def file (new File "/Users/shughes/Desktop/test.db"))
 
-(def bf (new BufferedInputStream (new FileInputStream file)))
-(def bytes (vec (byte-seq bf)))
-(bytes 51)
+(def f2 (new FileInputStream file))
+(def ch2 (.getChannel f2))
+(def bb (. ByteBuffer (allocateDirect (.length file))))
+(. ch2 (read bb))
+(.rewind bb)
+(def bytes (vec (get-bytes bb)))
+
 
 (.close ch2)
