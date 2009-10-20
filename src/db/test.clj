@@ -46,6 +46,4 @@
 (. ch2 (read bb))
 (.rewind bb)
 (def bytes (vec (get-bytes bb)))
-
-
-(.close ch2)
+bytes

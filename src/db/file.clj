@@ -8,7 +8,10 @@
 
 (def *page-size* 1024)
 
-(def *leaf* (byte 8))
+(def *leaf-flag* (byte 8))
+
+(defn- is-leaf? [b]
+  (if (> (bit-and *leaf-flag* b) 0) true false))
 
 (defn- sfirst [val]
   (if (= 0 (count val)) nil
@@ -38,7 +41,7 @@
 	  (recur ret (str rem result)))))))
 
 (defn- byte-list 
-  "Converts a base 10 number into a byte list."
+  "Converts a base 10 number into a list of bytes."
   [n]
   (loop [val n, result '()]
     (if (= val 0) result
@@ -140,13 +143,13 @@
 	(recur)))))
 
 (defn- fill-string-data [bb page]
-  (loop [i 0, pos (page :size), result []]
+  (loop [i 0, pos *page-size*, result []]
     (if (not= i (count (page :data)))
       (let [data ((page :data) i)
 	    size (+ (count data) 1
-		    (if (= 0 (bit-and *leaf* (page :flags))) 4 0))]
+		    (if (is-leaf? (page :flags)) 0 4))]
 	(. bb (position (- pos size)))
-	(if (= 0 (bit-and *leaf* (page :flags)))
+	(if (not (is-leaf? (page :flags)))
 	  (. bb (put (into-array Byte/TYPE (list (byte 0) (byte 0) (byte 0) (byte 0))))))
 	(. bb (put (byte (count data))))
 	(. bb (put (.getBytes data)))
@@ -162,26 +165,81 @@
 		     (recur (inc i) (concat (list (byte 0)) arr))))]
     (into-array Byte/TYPE byte-vec)))
 
-(defn set-page 
-  "0-16  header
-   16-20 parent id"
+(defn set-page
   [page]
   (let [bb (. ByteBuffer (allocate *page-size*))]
     (. bb (put (page :flags)))
     (. bb (put (n-byte-array 4 (page :parent))))
     (let [ptrs (fill-string-data bb page)]
-      (. bb (position 5))
+      (. bb (position 7))
       (dotimes [i (count ptrs)]
-	(. bb (put (n-byte-array 2 (ptrs i))))))
+	(. bb (put (n-byte-array 2 (ptrs i)))))
+      ;; next available byte goes into byte offset 5.
+      (. bb (position 5))
+      (. bb (put (n-byte-array 2 (+ 7 (* 2 (count ptrs)))))))
     ;; write to file
     (. bb (position 0))
     (. (page :out) (position (- (+ 100 (* (page :id) 
-					  *page-size*)) 
+					  *page-size*))
 				*page-size*)))
     (write-bytes (page :out) bb)))
 
-(defn get-page [id]
-  )
+(defn- bytes-to-int [lst]
+  (loop [i 0, rev (reverse lst), result 0]
+    (if (= nil (first rev))
+      result
+      (let [val (if (< (first rev) 0)
+		  (+ 256 (first rev))
+		  (first rev))]
+	(recur (inc i) (rest rev) (+ result (* (expt 256 i) val)))))))
+
+(defn- get-free-byte [bb]
+  (. bb (position 5))
+  (let [bytes (list (.get bb) (.get bb))]
+    (bytes-to-int bytes)))
+
+(defn- get-page-index [id]
+  (- (+ 100 (* id *page-size*)) *page-size*))
+
+(defn- get-flag [bb]
+  (. bb (position 0))
+  (.get bb))
+
+(defn- get-content [bb flags]
+  (. bb (position 7))
+  (let [free (get-free-byte bb)
+	p (loop [i 7, result '()]
+	    (if (= i free)
+	      result
+	      (let [offset (bytes-to-int [(.get bb) (.get bb)])]
+		(recur (+ 2 i) (concat result (list offset))))))]
+    (loop [ptrs p, result '()]
+      (if (= (first ptrs) nil)
+	result
+	(do 
+	  (. bb (position (first ptrs)))
+	  (let [size (if (is-leaf? flags) (.get bb) 
+			 (do (. bb (position (+ 4 (.position bb))))
+			     (.get bb)))
+		lst (loop [i 0, c '()]
+		      (if (= i (- size 1))
+			(concat c (list (.get bb)))
+			(recur (inc i) (concat c (list (.get bb))))))
+		content (new String (into-array Byte/TYPE lst))]
+	    (recur (rest ptrs) (concat result (list content)))))))))
+
+(defn- get-parent-id [bb]
+  (. bb (position 1))
+  (bytes-to-int (list (.get bb) (.get bb) (.get bb) (.get bb))))
+
+(defn get-page [in id]
+  (. in (position (get-page-index id)))
+  (let [bb (. ByteBuffer (allocateDirect *page-size*))]
+    (. in (read bb))
+    (let [content (get-content bb (get-flag bb))
+	  parent (get-parent-id bb)]
+      ;; here
+      )))
 
 (defn test- [f]
   (let [buf (. ByteBuffer (allocateDirect (.length f)))
@@ -207,7 +265,9 @@
 	    :parent 0
 	    :data ["animals" "facebook" "samuel"]
 	    :children nil})
+
 (set-page -page)
+(get-page chin 1)
 
 (def ret (vec (test- file)))
 
