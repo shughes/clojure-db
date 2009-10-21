@@ -3,3 +3,5 @@ lib/
 *\#*
 trends.db
 notes.org
+classes/
+*.jar

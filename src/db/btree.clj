@@ -1,32 +1,56 @@
 (ns db.btree
-  (:use [clojure.contrib.def :only (defvar-)]))
+  (:use [clojure.contrib.def :only (defvar-)])
+  (:require [db.file :as f]
+	    [db.config :as c]))
 
 ;; Data ;; 
-
-(def tree (ref (with-meta {} {:next-id 0})))
 
 (defstruct node :id :parent :children :values)
 
 (defn- get-node [key]
-  (if (= nil key) nil
-      (@tree key)))
+  (let [page (f/get-page (c/config :in) key)
+	parent (if (= 0 (page :parent)) nil (page :parent))]
+    (struct node key parent (page :children) (page :data))))
 
-(defn- insert-node [node]
-  (dosync 
-   (let [next-id ((meta @tree) :next-id)
-	 next-node (assoc node :id next-id)]
-     (ref-set tree (with-meta (assoc @tree next-id next-node) {:next-id (inc next-id)}))
-     next-node)))
+(defn- create-page [node]
+  (struct f/page 
+	  (node :id)
+	  (c/config :in)
+	  (c/config :out)
+	  (if (= nil (first (node :children)))
+	    (byte 8) (byte 0))
+	  (if (= nil (node :parent))
+	    0 (node :parent))
+	  (node :values)
+	  (if (= 0 (count (node :children))) nil (node :children))))
+
+(defn- create-node [page]
+  (let [parent (if (= 0 (page :parent)) nil (page :parent))]
+    (struct node (page :id) parent (page :children) (page :data))))
+
+(defn insert-node [node]
+  (let [page (create-page node)
+	new-page (f/insert-page page)]
+    (create-node new-page)))
 
 (defn- set-node [key node]
-  (dosync 
-   (ref-set tree (assoc @tree key node))))
+  (let [page (create-page (assoc node :id key))
+	new-page (f/set-page page)]
+    (create-node new-page)))
+
+(def root (ref nil))
+
+(defn- get-root []
+  @root)
+
+(defn- set-root [r]
+  (dosync
+   (f/set-root (c/config :out) r)
+   (ref-set root r)))
 
 ;; End Data ;;
 
-(def n 5)
-
-(def root (ref nil))
+(def n (c/config :n))
 
 (defn- get-index [v vs]
   (loop [val v, vals vs, index 0]
@@ -70,7 +94,7 @@
 (defn- adjust-tree [node]
   (let [promoted (int (/ n 2))
 	parent (if (not= nil (node :parent))
-		 (get-node (node :parent))
+		 (do (get-node (node :parent)))
 		 (insert-node {:parent nil
 			       :children []
 			       :values []}))
@@ -89,7 +113,7 @@
     ;; make sure node2's children point to node2 as their parent.
     (if (has-children? node2) 
       (adjust-children-parent (node2 :id) (node2 :children)))
-    (if (= (parent :parent) nil) (dosync (ref-set root (parent :id))))
+    (if (= (parent :parent) nil) (set-root (parent :id)))
     (let [parent-children (if (has-children? parent)
 			    (new-children (parent :children) (node :id) (node2 :id) (node1 :id))
 			    [(node2 :id) (node1 :id)])
@@ -110,18 +134,17 @@
     false))
 
 (defn insert [value]
-  (if (= nil @root)
+  (if (= nil (get-root))
     (let [r (insert-node {:parent nil
 			  :values [value]
-			  :children []})]
-      (dosync (ref-set root (r :id)))
+			  :children nil})]
+      (set-root (r :id))
       true)
-    (let [node (find-insert-node @root value)]
+    (let [node (find-insert-node (get-root) value)]
       (if (= nil node) false
 	  (do (if (filled? node) 
 		(adjust-tree node))
 	      true)))))
-
 
 ;; testing ;; 
 
@@ -145,18 +168,3 @@
 	  (if (= (first children) nil) 
 	    (draw-tree (node :parent) tree false)
 	    (draw-tree (first children) (assoc tree key new-node) true))))))
-
-
-(defn run-test []
-  (def n 5)
-  (dosync (ref-set root nil)
-	  (ref-set tree (with-meta {} {:next-id 0})))
-  (insert "nothing")
-  (insert "doggy")
-  (insert "castle")
-  (insert "mouse")
-  (insert "fancy")
-  (insert "feast")
-  (insert "house")
-  (insert "karaoke")
-  (draw-tree @root @tree true))
