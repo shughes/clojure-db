@@ -1,6 +1,5 @@
 (ns db.main 
-  (:require [db.config :as c]
-	    [db.btree :as b]
+  (:require [db.btree :as b]
 	    [db.file :as f])
   (:import [java.io File]
 	   [java.nio ByteBuffer]))
@@ -19,7 +18,7 @@
 
 ;(defstruct page :id :flags :parent :data :children)
 (defn- main []
-  (f/open (c/config :file))
+  (f/open "/Users/shughes/Desktop/test.db")
   ;(println (f/get-last-id))
   (insert)
   (println (f/get-n))
@@ -30,7 +29,6 @@
   ;(f/set-page (struct f/page 1 (byte 8) 0 ["samuel"]))
   ;(f/set-page (struct f/page 2 (byte 8) 0 ["dog"]))
   ;(f/set-page (struct f/page 3 (byte 8) 0 ["fish"]))
-  ;(println (.length (new File (c/config :file))))
   ;(f/file-to-bytes)
   (f/close))
 

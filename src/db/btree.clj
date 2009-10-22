@@ -1,7 +1,6 @@
 (ns db.btree
   (:use [clojure.contrib.def :only (defvar-)])
-  (:require [db.file :as f]
-	    [db.config :as c]))
+  (:require [db.file :as f]))
 
 ;; Data ;; 
 

@@ -1,5 +1,4 @@
 (ns db.file
-  (:require [db.config :as c])
   (:use [clojure.contrib.str-utils]
 	[clojure.contrib.def :only (defvar-)]
 	[clojure.contrib.math]
