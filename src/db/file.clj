@@ -1,6 +1,7 @@
 (ns db.file
   (:require [db.config :as c])
   (:use [clojure.contrib.str-utils]
+	[clojure.contrib.def :only (defvar-)]
 	[clojure.contrib.math]
 	[clojure.contrib.test-is])
   (:import [java.nio.channels FileChannel]
@@ -8,16 +9,37 @@
 	   [java.util BitSet]
 	   [java.io File FileInputStream FileOutputStream DataOutputStream BufferedInputStream]))
 
-(def *page-size* 1024)
-(def *leaf-flag* (byte 8))
-(def *flags-index* 0)
-(def *parent-index* 1)
-(def *free-byte-index* 5)
-(def *last-child-index* 7)
-(def *root-index* 11)
-(def *ptrs-index* 15)
+(defvar- *page-size* 1024)
 
-(defstruct page :id :in :out :flags :parent :data :children)
+(defvar- *default-n* 5)
+
+(defvar- *header-size* 100)
+
+(defvar- *leaf-flag* (byte 8))
+
+(defvar- *flags-index* 0)
+
+(defvar- *parent-index* 1)
+
+(defvar- *free-byte-index* 5)
+
+(defvar- *last-child-index* 7)
+
+(defvar- *ptrs-index* 15)
+
+(defvar- *header-string* 0)
+
+(defvar- *header-page-size* 16)
+
+(defvar- *header-root-id* 18)
+
+(defvar- *header-last-id* 22)
+
+(defvar- *header-n* 26)
+
+(defvar- -file (ref {})) ;; :out and :in
+
+(defstruct page :id :flags :parent :data :children)
 
 (defn- is-leaf? [b]
   (if (> (bit-and *leaf-flag* b) 0) true false))
@@ -31,23 +53,24 @@
     (subs str-val 1)
     nil))
 
-(defn- dec-to-hex [i]
-  (let [val (if (< i 0)
-	      (+ 256 i)
-	      i)]
-    (loop [dec val, result ""]
-      (let [ret (int (/ dec 16))
-	    r1 (mod dec 16)
-	    rem (cond (= r1 10) "a"
-		      (= r1 11) "b"
-		      (= r1 12) "c"
-		      (= r1 13) "d"
-		      (= r1 14) "e"
-		      (= r1 15) "f"
-		      :else r1)]
-	(if (= 0 ret)
-	  (str rem result)
-	  (recur ret (str rem result)))))))
+(defn- bytes-to-int
+  [lst]
+  (loop [i 0, rev (reverse lst), result 0]
+    (if (= nil (first rev))
+      result
+      (let [val (if (< (first rev) 0)
+		  (+ 256 (first rev))
+		  (first rev))]
+	(recur (inc i) (rest rev) (+ result (* (expt 256 i) val)))))))
+
+(defn write-bytes [bb pos]
+  (.rewind bb)
+  (let [ch-out (@-file :out)]
+    (loop []
+      (if (.hasRemaining bb)
+	(do
+	  (. ch-out (write bb pos))
+	  (recur))))))
 
 (defn- byte-list 
   "Converts a base 10 number into a list of bytes."
@@ -58,98 +81,56 @@
 	      q (int (/ val 256))]
 	  (recur q (cons (byte rem) result))))))
 
-(defn- rev-str [val]
-  (if (= nil (sfirst val))
-    nil
-    (concat (rev-str (srest val)) (list (sfirst val)))))
+(defn set-page-size [b]
+  (let [ch (@-file :out)]
+    (if (or (< b 512) (> b 65535))
+      (throw (new Exception "Page size must be between 512 and 65,536"))
+      (let [barr (byte-list b)
+	    bb (. ByteBuffer (allocate 2))]
+	(. bb (put 0 (first barr)))
+	(. bb (put 1 (first (rest barr))))
+	(.rewind bb)
+	(. ch (position *header-page-size*))
+	(write-bytes bb *header-page-size*)))))
 
-(defn- hex-to-dec [h]
-  (let [rlst (rev-str h)]
-    (loop [i 0
-	   r rlst
-	   result 0]
-      (if (= (first r) nil)
-	result
-	(let [val (cond (= (first r) "a") 10
-			(= (first r) "b") 11
-			(= (first r) "c") 12
-			(= (first r) "d") 13
-			(= (first r) "e") 14
-			(= (first r) "f") 15
-			:else (first r))]
-	  (recur (inc i) (rest r) 
-		 (+ (* (new Integer val) (expt 16 i)) result)))))))
-
-(defn- split-hex 
-  "Takes hex string and splits it into pairs. So x85a3 becomes (\"85\", \"a3\")."
-  [hex]
-  (let [even (if (= 0 (mod (count hex) 2))
-	       hex
-	       (str "0" hex))]
-    (loop [h even
-	   val ""
-	   result '()]
-      (cond 
-	(= nil h) result
-	(= (count val) 2) (recur (srest h) (sfirst h) (concat result (list val)))
-	:else (recur (srest h) (str val (sfirst h)) result)))))
-
-(defn set-page-size 
-  "Byte at index 16 and 17 give the page size."
-  [ch b]
-  (if (or (< b 512) (> b 65535))
-    (throw (new Exception "Page size must be between 512 and 65,536"))
-    (let [barr (byte-list b)
-	  bb (. ByteBuffer (allocate 2))]
-      (. bb (put 0 (first barr)))
-      (. bb (put 1 (first (rest barr))))
+(defn get-page-size []
+  (let [ch (@-file :in)]
+    (. ch (position *header-page-size*))
+    (let [bb (. ByteBuffer (allocate 2))]
+      (. ch (read bb))
       (.rewind bb)
-      (. ch (position 16))
-      (loop []
-	(if (.hasRemaining bb)
-	  (do 
-	    (. ch (write bb))
-	    (recur)))))))
+      (bytes-to-int (list (.get bb) (.get bb))))))
 
-(defn get-page-size [ch]
-  (. ch (position 16))
-  (let [bb (. ByteBuffer (allocate 2))]
-    (. ch (read bb))
-    (let [h1 (dec-to-hex (. bb (get 0)))
-	  h2 (dec-to-hex (. bb (get 1)))
-	  h3 (if (= (count h1) 1) (str "0" h1) h1)
-	  h4 (if (= (count h2) 1) (str "0" h2) h2)
-	  hex (str h3 h4)]
-      (hex-to-dec hex))))
+(defn set-n [n]
+  (let [bb (. ByteBuffer (allocate 1))]
+    (. bb (put (byte n)))
+    (write-bytes bb *header-n*)))
 
-(defn- set-header-string [ch str]
-  (. ch (position 0))
-  (let [bb (. ByteBuffer (allocate 16))]
+(defn get-n []
+  (let [in (@-file :in)
+	bb (. ByteBuffer (allocate 1))]
+    (. in (position *header-n*))
+    (. in (read bb))
+    (.rewind bb)
+    (bytes-to-int (list (.get bb)))))
+    
+
+(defn- set-header-string [str]
+  (let [bb (. ByteBuffer (allocate *header-page-size*))]
     (. bb (put (.getBytes str)))
-    (.rewind bb)
-    (loop []
-      (if (.hasRemaining bb)
-	(do
-	  (. ch (write bb))
-	  (recur))))))
+    (write-bytes bb *header-string*)))
 
-(defn- get-header-string [ch]
-  (. ch (position 0))
-  (let [bb (. ByteBuffer (allocate 16))]
-    (. ch (read bb))
-    (.rewind bb)
-    (let [result (loop [arr []]
-		   (if (.hasRemaining bb)
-		     (recur (conj arr (.get bb)))
-		     arr))]
-      (new String (into-array Byte/TYPE result)))))
-
-(defn- write-bytes [ch-out bb]
-  (loop []
-    (if (.hasRemaining bb)
-      (do
-	(. ch-out (write bb))
-	(recur)))))
+(defn- get-header-string []
+  (let [ch (@-file :in)]
+    (. ch (position *header-string*))
+    (let [bb (. ByteBuffer (allocate 16))]
+      (. ch (read bb))
+      (.rewind bb)
+      (let [result (loop [arr []]
+		     (if (.hasRemaining bb)
+		       (recur (conj arr (.get bb)))
+		       arr))]
+	(new String (into-array Byte/TYPE result))))))
 
 (defn- n-byte-array [n num]
   (let [bytes (if (not= nil num) (byte-list num) (list (byte 0)))
@@ -175,8 +156,7 @@
 	(recur (inc i) (- pos size) (conj result (- pos size))))
       result)))
 
-(defn set-page
-  [page]
+(defn set-page [page]
   (println "set-page " (str page))
   (let [bb (. ByteBuffer (allocate *page-size*))]
     (. bb (put (page :flags)))
@@ -194,21 +174,12 @@
       (. bb (put (n-byte-array 2 (+ *ptrs-index* (* 2 (count ptrs)))))))
     ;; write to file
     (. bb (position 0))
-    (. (page :out) (position (- (+ 100 (* (page :id) 
+    (. (@-file :out) (position (- (+ *header-size* (* (page :id) 
 					  *page-size*))
 				*page-size*)))
-    (write-bytes (page :out) bb)
+    (write-bytes bb (- (+ *header-size* (* (page :id) 
+					   *page-size*)) *page-size*))
     page))
-
-(defn- bytes-to-int
-  [lst]
-  (loop [i 0, rev (reverse lst), result 0]
-    (if (= nil (first rev))
-      result
-      (let [val (if (< (first rev) 0)
-		  (+ 256 (first rev))
-		  (first rev))]
-	(recur (inc i) (rest rev) (+ result (* (expt 256 i) val)))))))
 
 (defn- get-free-byte [bb]
   (. bb (position 5))
@@ -216,7 +187,7 @@
     (bytes-to-int bytes)))
 
 (defn- get-page-index [id]
-  (- (+ 100 (* id *page-size*)) *page-size*))
+  (- (+ *header-size* (* id *page-size*)) *page-size*))
 
 (defn- get-flag [bb]
   (. bb (position 0))
@@ -256,9 +227,10 @@
   (. bb (position *last-child-index*))
   (bytes-to-int (list (.get bb) (.get bb) (.get bb) (.get bb)))) 
 
-(defn get-page [in id]
-  (. in (position (get-page-index id)))
-  (let [bb (. ByteBuffer (allocateDirect *page-size*))]
+(defn get-page [id]
+  (let [in (@-file :in)
+	bb (. ByteBuffer (allocateDirect *page-size*))]
+    (. in (position (get-page-index id)))
     (. in (read bb))
     (let [content (get-content bb (get-flag bb))
 	  parent (get-parent-id bb)
@@ -275,59 +247,87 @@
        :data (vec (first par-ch)),
        :children (if (is-leaf? flags) nil (vec (first (rest par-ch))))})))
 
-(defn- get-last-id [in]
-  (. in (position 18))
-  (let [bb (. ByteBuffer (allocateDirect 4))]
-    (. in (read bb))
-    (.rewind bb)
-    (let [last (bytes-to-int [(.get bb) (.get bb)
-			      (.get bb) (.get bb)])]
-      last)))
+(defn get-last-id []
+  (let [in (@-file :in)]
+    (. in (position *header-last-id*))
+    (let [bb (. ByteBuffer (allocateDirect 4))]
+      (. in (read bb))
+      (.rewind bb)
+      (let [last (bytes-to-int [(.get bb) (.get bb)
+				(.get bb) (.get bb)])]
+	last))))
 
-(defn- set-last-id [out id]
-  (let [bb (. ByteBuffer (allocateDirect 4))]
+(defn- set-last-id [id]
+  (let [out (@-file :out)
+	bb (. ByteBuffer (allocateDirect 4))]
     (. bb (put (n-byte-array 4 id)))
-    (. out (position 18))
     (.rewind bb)
-    (write-bytes out bb)))
+    (write-bytes bb *header-last-id*)))
 
 (defn insert-page [page]
-  (let [last (get-last-id (page :in))]
+  (let [last (get-last-id)]
     (set-page (assoc page :id (inc last)))
-    (set-last-id (page :out) (inc last))
+    (set-last-id (inc last))
     (assoc page :id (inc last))))
 
-(defn open [file]
-  (let [in (new FileInputStream file)
-	out (new FileOutputStream file)]
-    {:in (.getChannel in), :out (.getChannel out)}))
+(defn- dead [fi cout]
+  (if (= 0 (.length fi))
+    (let [bb (. ByteBuffer (allocate *header-size*))]
+      (dotimes [i *header-size*]
+	(. bb (put (byte 0))))
+      (.rewind bb)
+      (. cout (position 0))
+      (loop []
+	(if (.hasRemaining bb)
+	  (do
+	    (. cout (write bb))
+	    (recur)))))))
 
-(defn close [ptr]
-  (.close (ptr :in))
-  (.close (ptr :out)))
+(defn open [f]
+  (let [fi (new File f)
+	new (if (not (.exists fi)) true false)
+	out (new FileOutputStream f true)
+	in (new FileInputStream f)
+	cout (.getChannel out)
+	cin (.getChannel in)]
+    (dosync
+     (ref-set -file {:file fi
+		     :out cout
+		     :in cin})
+     (if new
+       (do
+	 (set-page-size *page-size*)
+	 (set-n *default-n*))))))
 
-(defn file-to-bytes [f]
-  (let [buf (. ByteBuffer (allocateDirect (.length f)))
-	fin (new FileInputStream f)
-	fc (.getChannel fin)]
+(defn close []
+  (.close (@-file :in))
+  (.close (@-file :out)))
+
+(defn file-to-bytes []
+  (let [buf (. ByteBuffer (allocateDirect (.length (@-file :file))))
+	fc (@-file :in)]
+    (. fc (position 0))
     (. fc (read buf))
     (. buf (position 0))
     (.close fc)
-    (loop [result '()]
-      (if (.hasRemaining buf)
-	(recur (concat result (list (.get buf))))
-	result))))
+    (let [count (loop [result '(), i 0]
+		  (if (.hasRemaining buf)
+		    (let [b (.get buf)]
+		      (print b " ")
+		      (recur (concat result (list b)) (inc i)))
+		    i))]
+      )))
 
-(defn get-root [in]
-  (let [bb (. ByteBuffer (allocate 4))]
-    (. in (position *root-index*))
+(defn get-root []
+  (let [in (@-file :in)
+	bb (. ByteBuffer (allocate 4))]
+    (. in (position *header-root-id*))
     (. in (read bb))
     (.rewind bb)
     (bytes-to-int (list (.get bb) (.get bb) (.get bb) (.get bb)))))
 
-(defn set-root [out id]
-  (. out (position *root-index*))
-  (let [bb (. ByteBuffer (allocate 4))]
-    (. bb (put (n-byte-array 4 id)))
-    (.rewind bb)
-    (write-bytes out bb)))
+(defn set-root [id]
+  (let [out (@-file :out)
+	bb (. ByteBuffer (allocate 4))]
+      (. bb (put (n-byte-array 4 id)))
+      (write-bytes bb *header-root-id*)))

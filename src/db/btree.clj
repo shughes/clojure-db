@@ -8,15 +8,13 @@
 (defstruct node :id :parent :children :values)
 
 (defn- get-node [key]
-  (let [page (f/get-page (c/config :in) key)
+  (let [page (f/get-page key)
 	parent (if (= 0 (page :parent)) nil (page :parent))]
     (struct node key parent (page :children) (page :data))))
 
 (defn- create-page [node]
   (struct f/page 
 	  (node :id)
-	  (c/config :in)
-	  (c/config :out)
 	  (if (= nil (first (node :children)))
 	    (byte 8) (byte 0))
 	  (if (= nil (node :parent))
@@ -38,19 +36,28 @@
 	new-page (f/set-page page)]
     (create-node new-page)))
 
-(def root (ref nil))
+(defvar- root (ref nil))
 
 (defn- get-root []
+  (if (= nil @root)
+    (dosync
+     (let [r (f/get-root)]
+       (ref-set root (if (= 0 r) nil r)))))
   @root)
 
 (defn- set-root [r]
   (dosync
-   (f/set-root (c/config :out) r)
+   (f/set-root r)
    (ref-set root r)))
 
-;; End Data ;;
+(defvar- n (ref nil))
 
-(def n (c/config :n))
+(defn- get-n []
+  (if (= nil @n)
+    (dosync (ref-set n (f/get-n))))
+  @n)
+
+;; End Data ;;
 
 (defn- get-index [v vs]
   (loop [val v, vals vs, index 0]
@@ -76,7 +83,8 @@
 
 (defn- new-children [children old-id id1 id2]
   (cond (= (first children) nil) nil
-	(= (first children) old-id) (vec (concat [id1 id2] (new-children (rest children) old-id id1 id2)))
+	(= (first children) old-id) 
+	(vec (concat [id1 id2] (new-children (rest children) old-id id1 id2)))
 	:else (vec (concat [(first children)] (new-children (rest children) old-id id1 id2)))))
 
 (defn- has-children? [node]
@@ -92,7 +100,7 @@
       (adjust-children-parent parent (rest children)))))
 
 (defn- adjust-tree [node]
-  (let [promoted (int (/ n 2))
+  (let [promoted (int (/ (get-n) 2))
 	parent (if (not= nil (node :parent))
 		 (do (get-node (node :parent)))
 		 (insert-node {:parent nil
@@ -129,7 +137,7 @@
 	(adjust-tree new-parent)))))
 	
 (defn- filled? [node]
-  (if (= n (count (node :values)))
+  (if (= (get-n) (count (node :values)))
     true
     false))
 
@@ -141,30 +149,28 @@
       (set-root (r :id))
       true)
     (let [node (find-insert-node (get-root) value)]
-      (if (= nil node) false
-	  (do (if (filled? node) 
-		(adjust-tree node))
-	      true)))))
+      (if (= nil node) 
+	false
+	(do (if (filled? node) 
+	      (adjust-tree node))
+	    true)))))
 
-;; testing ;; 
 
-(defn print-list [lst]
-  (if (= (first lst) nil) (do (println) nil)
-      (do (print (first lst) " ")
-	  (print-list (rest lst)))))
+(defn- search-index [v vs]
+  (loop [val v, vals vs, index 0]
+    (cond (= (first vals) nil) index
+	  (< (compare val (first vals)) 0) index
+	  (= (compare val (first vals)) 0) true
+	  :else (recur val (rest vals) (+ 1 index)))))
 
-(defn draw-tree [key tree print?]
-  (if (= nil key) "finished"
-      (let [node (tree key)]
-	(if print?
-	  (do
-	    (print (str "id: " key " parent: " (node :parent) " values: "))
-	    (print-list (node :values))))
-	(let [children (node :children)
-	      new-node {:id (node :id)
-			:parent (node :parent)
-			:children (vec (rest children))
-			:values (node :values)}]
-	  (if (= (first children) nil) 
-	    (draw-tree (node :parent) tree false)
-	    (draw-tree (first children) (assoc tree key new-node) true))))))
+(defn- search-node [key value]
+  (let [node (get-node key)
+	children (node :children)
+	index (search-index value (node :values))]
+    (cond 
+      (= true index) true
+      (= nil (first children)) false
+      :else (search-node ((node :children) index) value))))
+
+(defn search [value]
+  (search-node (get-root) value))

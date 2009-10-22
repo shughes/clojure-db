@@ -2,20 +2,36 @@
   (:require [db.config :as c]
 	    [db.btree :as b]
 	    [db.file :as f])
-  (:import [java.io File]))
+  (:import [java.io File]
+	   [java.nio ByteBuffer]))
 
-;(defstruct page :id :in :out :flags :parent :data :children)
-(defn- main []
+(defn- insert []
   (b/insert "animal")
-  (b/insert "dog")
   (b/insert "cat")
-  (b/insert "castle")
-  (b/insert "family")
-  (println (f/get-root (c/config :in)))
-  
-;  (let [bytes (vec (f/file-to-bytes (new File (c/config :file))))]
-;    (dotimes [i (count bytes)]
-      ;(print (str (bytes i) " "))))
-  (f/close c/config))
+  (b/insert "you")
+  (b/insert "dog")
+  (b/insert "mouse")
+  (b/insert "rat")
+  (b/insert "facebook")
+  (b/insert "excel")
+  (b/insert "entertain")
+  )
+
+;(defstruct page :id :flags :parent :data :children)
+(defn- main []
+  (f/open (c/config :file))
+  ;(println (f/get-last-id))
+  (insert)
+  (println (f/get-n))
+  (println (b/search "butt"))
+  ;(println (f/get-root))
+  ;(f/set-root 1)
+  ;(println (f/get-root))
+  ;(f/set-page (struct f/page 1 (byte 8) 0 ["samuel"]))
+  ;(f/set-page (struct f/page 2 (byte 8) 0 ["dog"]))
+  ;(f/set-page (struct f/page 3 (byte 8) 0 ["fish"]))
+  ;(println (.length (new File (c/config :file))))
+  ;(f/file-to-bytes)
+  (f/close))
 
 (main)
