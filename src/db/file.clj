@@ -24,7 +24,7 @@
 
 (defvar- *last-child-index* 7)
 
-(defvar- *ptrs-index* 15)
+(defvar- *ptrs-index* 11)
 
 (defvar- *header-string* 0)
 
@@ -36,11 +36,16 @@
 
 (defvar- *header-n* 26)
 
-(defvar- -file (ref {})) ;; :out and :in
+(defstruct file-node :file :in :out)
 
 (defstruct page :id :flags :parent :data :children)
 
-(defn- is-leaf? [b]
+(def test-dbm (ref nil))
+
+(defn- 
+  #^{:test (fn []
+	     (is (= true (is-leaf? *leaf-flag*))))}
+  is-leaf? [b]
   (if (> (bit-and *leaf-flag* b) 0) true false))
 
 (defn- sfirst [val]
@@ -52,8 +57,12 @@
     (subs str-val 1)
     nil))
 
-(defn- bytes-to-int
-  [lst]
+(defn- 
+  #^{:test (fn []
+	     (let [bytes (list 1 33)
+		   n 289]
+	       (is (= n (bytes-to-int bytes)))))}
+  bytes-to-int [lst]
   (loop [i 0, rev (reverse lst), result 0]
     (if (= nil (first rev))
       result
@@ -62,16 +71,21 @@
 		  (first rev))]
 	(recur (inc i) (rest rev) (+ result (* (expt 256 i) val)))))))
 
-(defn write-bytes [bb pos]
+(defn write-bytes [dbm bb pos]
   (.rewind bb)
-  (let [ch-out (@-file :out)]
+  (let [ch-out (dbm :out)]
     (loop []
       (if (.hasRemaining bb)
 	(do
 	  (. ch-out (write bb pos))
 	  (recur))))))
 
-(defn- byte-list 
+(defn- 
+  #^{:test (fn []
+	     (let [bytes (list 1 33)
+		   n 289]
+	       (is (= bytes (byte-list n)))))}
+  byte-list 
   "Converts a base 10 number into a list of bytes."
   [n]
   (loop [val n, result '()]
@@ -80,8 +94,8 @@
 	      q (int (/ val 256))]
 	  (recur q (cons (byte rem) result))))))
 
-(defn set-page-size [b]
-  (let [ch (@-file :out)]
+(defn set-page-size [dbm b]
+  (let [ch (dbm :out)]
     (if (or (< b 512) (> b 65535))
       (throw (new Exception "Page size must be between 512 and 65,536"))
       (let [barr (byte-list b)
@@ -90,23 +104,33 @@
 	(. bb (put 1 (first (rest barr))))
 	(.rewind bb)
 	(. ch (position *header-page-size*))
-	(write-bytes bb *header-page-size*)))))
+	(write-bytes dbm bb *header-page-size*)))))
 
-(defn get-page-size []
-  (let [ch (@-file :in)]
+(defn 
+  #^{:test (fn []
+	     (let [size 512]
+	       (set-page-size @test-dbm size)
+	       (is (= (get-page-size @test-dbm) size))))}
+  get-page-size [dbm]
+  (let [ch (dbm :in)]
     (. ch (position *header-page-size*))
     (let [bb (. ByteBuffer (allocate 2))]
       (. ch (read bb))
       (.rewind bb)
       (bytes-to-int (list (.get bb) (.get bb))))))
 
-(defn set-n [n]
+(defn set-n [dbm n]
   (let [bb (. ByteBuffer (allocate 1))]
     (. bb (put (byte n)))
-    (write-bytes bb *header-n*)))
+    (write-bytes dbm bb *header-n*)))
 
-(defn get-n []
-  (let [in (@-file :in)
+(defn 
+  #^{:test (fn []
+	     (let [n 5]
+	       (set-n @test-dbm n)
+	       (is (= (get-n @test-dbm) n))))}
+  get-n [dbm]
+  (let [in (dbm :in)
 	bb (. ByteBuffer (allocate 1))]
     (. in (position *header-n*))
     (. in (read bb))
@@ -114,13 +138,17 @@
     (bytes-to-int (list (.get bb)))))
     
 
-(defn- set-header-string [str]
+(defn- set-header-string [dbm str]
   (let [bb (. ByteBuffer (allocate *header-page-size*))]
     (. bb (put (.getBytes str)))
-    (write-bytes bb *header-string*)))
+    (write-bytes dbm bb *header-string*)))
 
-(defn- get-header-string []
-  (let [ch (@-file :in)]
+(defn- 
+  #^{:test (fn []
+	     (set-header-string @test-dbm "SQLite Format")
+	     (is (= (get-header-string @test-dbm) "SQLite Format")))}
+  get-header-string [dbm]
+  (let [ch (dbm :in)]
     (. ch (position *header-string*))
     (let [bb (. ByteBuffer (allocate 16))]
       (. ch (read bb))
@@ -129,9 +157,13 @@
 		     (if (.hasRemaining bb)
 		       (recur (conj arr (.get bb)))
 		       arr))]
-	(new String (into-array Byte/TYPE result))))))
+	(.trim (new String (into-array Byte/TYPE result)))))))
 
-(defn- n-byte-array [n num]
+(defn- 
+  #^{:test (fn []
+	     (let [arr (n-byte-array 4 10)]
+	       (is (= (aget arr 3) (byte 10)))))}
+  n-byte-array [n num]
   (let [bytes (if (not= nil num) (byte-list num) (list (byte 0)))
 	max (- n (count bytes))
 	byte-vec (loop [i 0, arr bytes]
@@ -155,7 +187,14 @@
 	(recur (inc i) (- pos size) (conj result (- pos size))))
       result)))
 
-(defn set-page [page]
+(declare get-page)
+
+(defn
+  #^{:test (fn [] 
+	     (let [p (struct page 1 (byte 8) 0 ["animal" "baseball" "cat"] nil)]
+	       (set-page @test-dbm p)
+	       (is (= (get-page @test-dbm 1) p))))}
+  set-page [dbm page]
   (println "set-page " (str page))
   (let [bb (. ByteBuffer (allocate *page-size*))]
     (. bb (put (page :flags)))
@@ -169,15 +208,14 @@
       (dotimes [i (count ptrs)]
 	(. bb (put (n-byte-array 2 (ptrs i)))))
       ;; next available byte goes into byte offset 5.
-      (. bb (position 5))
+      (. bb (position *free-byte-index*))
       (. bb (put (n-byte-array 2 (+ *ptrs-index* (* 2 (count ptrs)))))))
     ;; write to file
     (. bb (position 0))
-    (. (@-file :out) (position (- (+ *header-size* (* (page :id) 
+    (. (dbm :out) (position (- (+ *header-size* (* (page :id) 
 					  *page-size*))
 				*page-size*)))
-    (write-bytes bb (- (+ *header-size* (* (page :id) 
-					   *page-size*)) *page-size*))
+    (write-bytes dbm bb (- (+ *header-size* (* (page :id) *page-size*)) *page-size*))
     page))
 
 (defn- get-free-byte [bb]
@@ -226,8 +264,8 @@
   (. bb (position *last-child-index*))
   (bytes-to-int (list (.get bb) (.get bb) (.get bb) (.get bb)))) 
 
-(defn get-page [id]
-  (let [in (@-file :in)
+(defn get-page [dbm id]
+  (let [in (dbm :in)
 	bb (. ByteBuffer (allocateDirect *page-size*))]
     (. in (position (get-page-index id)))
     (. in (read bb))
@@ -246,8 +284,8 @@
        :data (vec (first par-ch)),
        :children (if (is-leaf? flags) nil (vec (first (rest par-ch))))})))
 
-(defn get-last-id []
-  (let [in (@-file :in)]
+(defn get-last-id [dbm]
+  (let [in (dbm :in)]
     (. in (position *header-last-id*))
     (let [bb (. ByteBuffer (allocateDirect 4))]
       (. in (read bb))
@@ -256,31 +294,23 @@
 				(.get bb) (.get bb)])]
 	last))))
 
-(defn- set-last-id [id]
-  (let [out (@-file :out)
+(defn- 
+  #^{:test (fn []
+	     (let [n 20]
+	       (set-last-id @test-dbm n)
+	       (is (= n (get-last-id @test-dbm)))))}
+  set-last-id [dbm id]
+  (let [out (dbm :out)
 	bb (. ByteBuffer (allocateDirect 4))]
     (. bb (put (n-byte-array 4 id)))
     (.rewind bb)
-    (write-bytes bb *header-last-id*)))
+    (write-bytes dbm bb *header-last-id*)))
 
-(defn insert-page [page]
-  (let [last (get-last-id)]
-    (set-page (assoc page :id (inc last)))
-    (set-last-id (inc last))
+(defn insert-page [dbm page]
+  (let [last (get-last-id dbm)]
+    (set-page dbm (assoc page :id (inc last)))
+    (set-last-id dbm (inc last))
     (assoc page :id (inc last))))
-
-(defn- dead [fi cout]
-  (if (= 0 (.length fi))
-    (let [bb (. ByteBuffer (allocate *header-size*))]
-      (dotimes [i *header-size*]
-	(. bb (put (byte 0))))
-      (.rewind bb)
-      (. cout (position 0))
-      (loop []
-	(if (.hasRemaining bb)
-	  (do
-	    (. cout (write bb))
-	    (recur)))))))
 
 (defn open [f]
   (let [fi (new File f)
@@ -289,22 +319,20 @@
 	in (new FileInputStream f)
 	cout (.getChannel out)
 	cin (.getChannel in)]
-    (dosync
-     (ref-set -file {:file fi
-		     :out cout
-		     :in cin})
-     (if new
-       (do
-	 (set-page-size *page-size*)
-	 (set-n *default-n*))))))
+     (let [dbm (struct file-node fi cin cout)]
+       (if new
+	 (do
+	   (set-page-size dbm *page-size*)
+	   (set-n dbm *default-n*)))
+       dbm)))
 
-(defn close []
-  (.close (@-file :in))
-  (.close (@-file :out)))
+(defn close [dbm]
+  (.close (dbm :in))
+  (.close (dbm :out)))
 
-(defn file-to-bytes []
-  (let [buf (. ByteBuffer (allocateDirect (.length (@-file :file))))
-	fc (@-file :in)]
+(defn file-to-bytes [dbm]
+  (let [buf (. ByteBuffer (allocateDirect (.length (dbm :file))))
+	fc (dbm :in)]
     (. fc (position 0))
     (. fc (read buf))
     (. buf (position 0))
@@ -317,16 +345,21 @@
 		    i))]
       )))
 
-(defn get-root []
-  (let [in (@-file :in)
+(defn get-root [dbm]
+  (let [in (dbm :in)
 	bb (. ByteBuffer (allocate 4))]
     (. in (position *header-root-id*))
     (. in (read bb))
     (.rewind bb)
     (bytes-to-int (list (.get bb) (.get bb) (.get bb) (.get bb)))))
 
-(defn set-root [id]
-  (let [out (@-file :out)
+(defn 
+  #^{:test (fn []
+	     (let [root 5]
+	       (set-root @test-dbm root)
+	       (is (= root (get-root @test-dbm)))))}
+  set-root [dbm id]
+  (let [out (dbm :out)
 	bb (. ByteBuffer (allocate 4))]
       (. bb (put (n-byte-array 4 id)))
-      (write-bytes bb *header-root-id*)))
+      (write-bytes dbm bb *header-root-id*)))

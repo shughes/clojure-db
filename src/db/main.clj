@@ -1,6 +1,9 @@
 (ns db.main 
+  (:use [clojure.contrib.test-is])
   (:require [db.btree :as b]
-	    [db.file :as f])
+	    [db.file :as f]
+	    [db.context :as c]
+	    [db.model :as m])
   (:import [java.io File]
 	   [java.nio ByteBuffer]))
 
@@ -13,23 +16,21 @@
   (b/insert "rat")
   (b/insert "facebook")
   (b/insert "excel")
-  (b/insert "entertain")
-  )
+  (b/insert "entertain"))
 
-;(defstruct page :id :flags :parent :data :children)
+(defn- setup-tests []
+  (c/set-dbm "test-model.db")
+  (dosync
+   (ref-set f/test-dbm (f/open "test-file.db"))))
+
+(defn- shutdown-tests []
+  (f/close (c/get-dbm))
+  (f/close @f/test-dbm))
+
 (defn- main []
-  (f/open "/Users/shughes/Desktop/test.db")
-  ;(println (f/get-last-id))
-  (insert)
-  (println (f/get-n))
-  (println (b/search "butt"))
-  ;(println (f/get-root))
-  ;(f/set-root 1)
-  ;(println (f/get-root))
-  ;(f/set-page (struct f/page 1 (byte 8) 0 ["samuel"]))
-  ;(f/set-page (struct f/page 2 (byte 8) 0 ["dog"]))
-  ;(f/set-page (struct f/page 3 (byte 8) 0 ["fish"]))
-  ;(f/file-to-bytes)
-  (f/close))
+  (setup-tests)
+  (run-tests 'db.model)
+  (run-tests 'db.file)
+  (shutdown-tests))
 
 (main)
