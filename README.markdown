@@ -1,7 +1,5 @@
-# Clojure Trials
+# Clojure Database
 
 by Samuel Hughes
-
-This repository will be for keeping track of my Clojure tests.
 
 
